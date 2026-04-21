@@ -39,7 +39,18 @@ async function handleMessage(msg, env) {
   // 1. ADMIN UPLOADER LOGIC (Private Chat)
   if (msg.chat.type === "private") {
     // Admin Lock: Only respond if ADMIN_ID variable is set and matches
-    if (!env.ADMIN_ID || chatId.toString() !== env.ADMIN_ID) return;
+    if (!env.ADMIN_ID || chatId.toString() !== env.ADMIN_ID) {
+      const tgApiUrl = `https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`;
+      await fetch(tgApiUrl, {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ 
+          chat_id: chatId, 
+          text: `❌ <b>You can't access this!</b>\nYour Telegram ID is: <code>${chatId}</code>\n\n<i>Please add this ID to the ADMIN_ID variable in Cloudflare.</i>`, 
+          parse_mode: "HTML" 
+        })
+      });
+      return;
+    }
     return handleAdminLogic(msg, env);
   }
 
