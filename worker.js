@@ -102,12 +102,19 @@ async function handleAdminLogic(msg, env) {
     return sendMsg("❌ <b>Upload Cancelled.</b> Send a new video to start again.");
   }
 
-  // Step 1: Receive Video
-  if (msg.video || msg.document) {
-    const fileId = msg.video ? msg.video.file_id : msg.document.file_id;
-    state = { step: "ask_id", fileId };
+  // Step 1: Receive File
+  let fileId = null;
+  let fileType = "file";
+  
+  if (msg.video) { fileId = msg.video.file_id; fileType = "video"; }
+  else if (msg.document) { fileId = msg.document.file_id; fileType = "document"; }
+  else if (msg.audio) { fileId = msg.audio.file_id; fileType = "audio"; }
+  else if (msg.photo) { fileId = msg.photo[msg.photo.length - 1].file_id; fileType = "photo"; }
+
+  if (fileId && !state.step) {
+    state = { step: "ask_id", fileId: fileId, fileType: fileType };
     await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
-    return sendMsg("🎬 <b>Video Received!</b>\n\n1️⃣ What is the <b>Movie ID</b> for Gateway? (e.g. <code>Movie_1</code>)\n\n<i>Type /cancel to abort.</i>");
+    return sendMsg("🎬 <b>File Received!</b>\n\n1️⃣ What is the <b>Movie ID</b> for Gateway? (e.g. <code>Movie_1</code>)\n\n<i>Type /cancel to abort.</i>");
   }
 
   // Step 2: Ask Title, Year, Rating
@@ -149,7 +156,7 @@ async function handleAdminLogic(msg, env) {
     // Add new quality entry
     movieData.qualities.push({
       id: state.fileId, // Saved for Gateway extraction
-      type: "video",
+      type: state.fileType || "video",
       name: `${quality} ${format}`.trim(),
       caption: `🎬 ${quality} (${format})`.trim(),
       q: newQ
@@ -163,7 +170,7 @@ async function handleAdminLogic(msg, env) {
 
   // Fallback for private chat
   if (!text.startsWith("/") && Object.keys(state).length === 0) {
-    return sendMsg("👋 <b>Admin Uploader Panel</b>\nForward a Video file to me to start uploading to KV.");
+    return sendMsg("👋 <b>Admin Uploader Panel</b>\nForward any file (Video, Document, Audio, Photo) to me to start uploading to KV.");
   }
 }
 
