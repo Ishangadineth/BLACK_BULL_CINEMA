@@ -32,10 +32,18 @@ export default {
 // ══════════════════════════════════════════════
 
 async function handleMessage(msg, env) {
-  const text = msg.text.trim();
+  const text = msg.text ? msg.text.trim() : "";
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
 
+  // 1. ADMIN UPLOADER LOGIC (Private Chat)
+  if (msg.chat.type === "private") {
+    // Admin Lock: Only respond if ADMIN_ID variable is set and matches
+    if (!env.ADMIN_ID || chatId.toString() !== env.ADMIN_ID) return;
+    return handleAdminLogic(msg, env);
+  }
+
+  // 2. GROUP MANAGER LOGIC
   // Ignore commands starting with "/"
   if (text.startsWith("/")) return;
 
@@ -67,6 +75,95 @@ async function handleMessage(msg, env) {
     // Dynamically fetch the bot username using the Telegram API
     const botUsername = await getBotUsername(selectedToken);
     await sendMovieReply(selectedToken, botUsername, chatId, msgId, movieData);
+  }
+}
+
+// ══════════════════════════════════════════════
+// ADMIN UPLOADER LOGIC (PRIVATE CHAT)
+// ══════════════════════════════════════════════
+
+async function handleAdminLogic(msg, env) {
+  const chatId = msg.chat.id;
+  const text = msg.text ? msg.text.trim() : "";
+  const kv = env.BLACK_BULL_CINEMA;
+  
+  const sendMsg = async (msgText) => fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, { 
+    method: "POST", headers: {"Content-Type": "application/json"}, 
+    body: JSON.stringify({ chat_id: chatId, text: msgText, parse_mode: "HTML" }) 
+  });
+
+  // Read current conversational state
+  let state = {};
+  const stateStr = await kv.get(`admin_state_${chatId}`);
+  if (stateStr) state = JSON.parse(stateStr);
+
+  if (text === "/cancel") {
+    await kv.delete(`admin_state_${chatId}`);
+    return sendMsg("❌ <b>Upload Cancelled.</b> Send a new video to start again.");
+  }
+
+  // Step 1: Receive Video
+  if (msg.video || msg.document) {
+    const fileId = msg.video ? msg.video.file_id : msg.document.file_id;
+    state = { step: "ask_id", fileId };
+    await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
+    return sendMsg("🎬 <b>Video Received!</b>\n\n1️⃣ What is the <b>Movie ID</b> for Gateway? (e.g. <code>Movie_1</code>)\n\n<i>Type /cancel to abort.</i>");
+  }
+
+  // Step 2: Ask Title, Year, Rating
+  if (state.step === "ask_id" && text) {
+    state.movieId = text;
+    state.step = "ask_details";
+    await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
+    return sendMsg("2️⃣ Enter <b>Movie Name, Year, Rating</b>\n<i>(Comma separated. e.g: Avatar, 2009, 7.9)</i>");
+  }
+
+  // Step 3: Ask Quality and Format
+  if (state.step === "ask_details" && text) {
+    const parts = text.split(",").map(s => s.trim());
+    state.title = parts[0] || "Unknown";
+    state.year = parts[1] || "Unknown";
+    state.rating = parts[2] || "N/A";
+    state.step = "ask_quality";
+    await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
+    return sendMsg("3️⃣ Enter <b>Quality, Format</b>\n<i>(Comma separated. e.g: 1080p, WEB-DL)</i>");
+  }
+
+  // Step 4: Save to KV
+  if (state.step === "ask_quality" && text) {
+    const parts = text.split(",").map(s => s.trim());
+    const quality = parts[0] || "Unknown";
+    const format = parts[1] || "";
+    
+    const searchKey = state.title.toLowerCase();
+    
+    // Load existing Movie Data to append quality if it already exists
+    let movieData = { id: state.movieId, title: state.title, year: state.year, rating: state.rating, qualities: [] };
+    const existingStr = await kv.get(searchKey);
+    if (existingStr) {
+      try { movieData = JSON.parse(existingStr); } catch(e) {}
+    }
+
+    const newQ = `${quality.toLowerCase()}_${format.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+    
+    // Add new quality entry
+    movieData.qualities.push({
+      id: state.fileId, // Saved for Gateway extraction
+      type: "video",
+      name: `${quality} ${format}`.trim(),
+      caption: `🎬 ${quality} (${format})`.trim(),
+      q: newQ
+    });
+
+    await kv.put(searchKey, JSON.stringify(movieData));
+    await kv.delete(`admin_state_${chatId}`);
+
+    return sendMsg(`✅ <b>Successfully Saved to KV!</b>\n\n📌 <b>Key:</b> <code>${searchKey}</code>\n🎬 <b>Total Qualities:</b> ${movieData.qualities.length}\n\n<i>Forward another video to add more qualities or a new movie.</i>`);
+  }
+
+  // Fallback for private chat
+  if (!text.startsWith("/") && Object.keys(state).length === 0) {
+    return sendMsg("👋 <b>Admin Uploader Panel</b>\nForward a Video file to me to start uploading to KV.");
   }
 }
 
