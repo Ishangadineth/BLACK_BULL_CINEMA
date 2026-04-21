@@ -12,8 +12,8 @@ export default {
     try {
       const payload = await request.json();
 
-      // Ensure it's a message and contains text
-      if (payload.message && payload.message.text) {
+      // Ensure it's a message
+      if (payload.message) {
         // Process message in the background
         ctx.waitUntil(handleMessage(payload.message, env));
       }
