@@ -83,9 +83,7 @@ async function handleMessage(msg, env) {
 
   // If a movie is found, process the UI logic and reply
   if (movieData) {
-    // Dynamically fetch the bot username using the Telegram API
-    const botUsername = await getBotUsername(selectedToken);
-    await sendMovieReply(selectedToken, botUsername, chatId, msgId, movieData);
+    await sendMovieReplyWithRetry(bots, botIndex, chatId, msgId, movieData);
   }
 }
 
@@ -221,9 +219,7 @@ async function searchMovieInKV(query, kv) {
   return null;
 }
 
-async function sendMovieReply(botToken, botUser, chatId, replyToMsgId, movieData) {
-  const tgApiUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
-
+async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, movieData) {
   // Format the UI Message Details
   const text = `🎬 <b>Movie Found!</b>\n\n` +
     `📌 <b>Title:</b> ${movieData.title}\n` +
@@ -231,41 +227,62 @@ async function sendMovieReply(botToken, botUser, chatId, replyToMsgId, movieData
     `⭐ <b>Rating:</b> ${movieData.rating}\n\n` +
     `<i>Select quality to download below:</i>`;
 
-  const baseUrl = `https://idsmovieplanet.ishangadineth.online/?id=${movieData.id}&bot=${botUser}`;
+  // Try each bot starting from the Round-Robin selected index
+  for (let offset = 0; offset < bots.length; offset++) {
+    const currentIndex = (startIndex + offset) % bots.length;
+    const botToken = bots[currentIndex];
 
-  // Dynamically generate buttons based on 'qualities' array in KV
-  // e.g. qualities: [{ name: "480p WEBRip", q: "480p_web" }, { name: "1080p HW", q: "1080p_hw" }]
-  const keyboard = [];
-
-  if (movieData.qualities && Array.isArray(movieData.qualities)) {
-    // Add buttons in pairs (2 per row) for a clean UI
-    for (let i = 0; i < movieData.qualities.length; i += 2) {
-      const row = [];
-      const q1 = movieData.qualities[i];
-      row.push({ text: `🎬 ${q1.name}`, url: `${baseUrl}&q=${q1.q}` });
-
-      if (i + 1 < movieData.qualities.length) {
-        const q2 = movieData.qualities[i + 1];
-        row.push({ text: `🎬 ${q2.name}`, url: `${baseUrl}&q=${q2.q}` });
-      }
-      keyboard.push(row);
+    // Fetch username dynamically. If token is invalid, it returns UnknownBot.
+    const botUser = await getBotUsername(botToken);
+    if (botUser === "UnknownBot") {
+      console.warn(`Bot ${currentIndex + 1} seems invalid. Skipping to next...`);
+      continue;
     }
-  } else {
-    // Fallback if no specific qualities are provided
-    keyboard.push([{ text: "🎬 Click Here to Download", url: baseUrl }]);
+
+    const baseUrl = `https://idsmovieplanet.ishangadineth.online/?id=${movieData.id}&bot=${botUser}`;
+
+    // Dynamically generate buttons based on 'qualities' array in KV
+    const keyboard = [];
+    if (movieData.qualities && Array.isArray(movieData.qualities)) {
+      for (let i = 0; i < movieData.qualities.length; i += 2) {
+        const row = [];
+        const q1 = movieData.qualities[i];
+        row.push({ text: `🎬 ${q1.name}`, url: `${baseUrl}&q=${q1.q}` });
+        if (i + 1 < movieData.qualities.length) {
+          const q2 = movieData.qualities[i + 1];
+          row.push({ text: `🎬 ${q2.name}`, url: `${baseUrl}&q=${q2.q}` });
+        }
+        keyboard.push(row);
+      }
+    } else {
+      keyboard.push([{ text: "🎬 Click Here to Download", url: baseUrl }]);
+    }
+
+    const payload = {
+      chat_id: chatId,
+      text: text,
+      parse_mode: "HTML",
+      reply_to_message_id: replyToMsgId,
+      reply_markup: { inline_keyboard: keyboard }
+    };
+
+    const tgApiUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    try {
+      const res = await fetch(tgApiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        // Successfully sent message! Exit the loop completely.
+        return;
+      } else {
+        console.warn(`Bot ${currentIndex + 1} failed to send message: ${data.description}. Trying next bot...`);
+      }
+    } catch (e) {
+      console.error(`Fetch error for Bot ${currentIndex + 1}:`, e);
+    }
   }
-
-  const payload = {
-    chat_id: chatId,
-    text: text,
-    parse_mode: "HTML",
-    reply_to_message_id: replyToMsgId,
-    reply_markup: { inline_keyboard: keyboard }
-  };
-
-  await fetch(tgApiUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
 }
