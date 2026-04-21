@@ -1,0 +1,8 @@
+name = "black-bull-cinema-bot"
+main = "worker.js"
+compatibility_date = "2024-04-22"
+
+# පහළ තියෙන කෑලී uncomment කරලා ඔයාගේ KV ID එක දෙන්න පුළුවන් (CLI පාවිච්චි කරනවා නම්)
+# [[kv_namespaces]]
+# binding = "BLACK_BULL_CINEMA"
+# id = "YOUR_KV_NAMESPACE_ID"
