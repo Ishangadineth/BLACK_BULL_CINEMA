@@ -12,9 +12,10 @@ export default {
     try {
       const payload = await request.json();
 
-      // Ensure it's a message
+      if (payload.callback_query) {
+        ctx.waitUntil(handleCallback(payload.callback_query, env));
+      }
       if (payload.message) {
-        // Process message in the background
         ctx.waitUntil(handleMessage(payload.message, env));
       }
 
@@ -73,7 +74,31 @@ async function handleMessage(msg, env) {
   }
 
   // 2. GROUP MANAGER LOGIC
-  // Ignore commands starting with "/"
+  
+  if (text === "/list") {
+    const list = await env.BLACK_BULL_CINEMA.list();
+    const movieKeys = list.keys.filter(k => !k.name.startsWith("admin_") && !k.name.startsWith("site_") && !k.name.startsWith("verified_"));
+    
+    if (movieKeys.length === 0) {
+       await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, { 
+         method: "POST", headers: {"Content-Type": "application/json"}, 
+         body: JSON.stringify({ chat_id: chatId, text: "📂 <b>No movies available yet.</b>", parse_mode: "HTML" }) 
+       });
+       return;
+    }
+
+    const listText = `📂 <b>Available Movies List:</b>\n\n` + 
+      movieKeys.map((k, i) => `${i+1}. <code>${k.name}</code>`).join("\n") +
+      `\n\n<i>Tap a movie name to copy it, then paste it to search!</i>`;
+
+    await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, { 
+         method: "POST", headers: {"Content-Type": "application/json"}, 
+         body: JSON.stringify({ chat_id: chatId, text: listText, parse_mode: "HTML" }) 
+    });
+    return;
+  }
+
+  // Ignore other commands starting with "/"
   if (text.startsWith("/")) return;
 
   // Round-Robin Logic using modulo operator
@@ -166,62 +191,121 @@ async function handleAdminLogic(msg, env) {
     return sendMsg("2️⃣ Enter <b>Quality, Format</b>\n<i>(Comma separated. e.g: 1080p, WEB)</i>");
   }
 
-  // Step 4: Save to KV
+  // Step 4: Ask for Thumbnail
   if (state.step === "ask_quality" && text) {
     const parts = text.split(",").map(s => s.trim());
-    const quality = parts[0] || "Unknown";
-    const format = parts[1] || "";
+    state.quality = parts[0] || "Unknown";
+    state.format = parts[1] || "";
     
-    const searchKey = state.title.toLowerCase().trim();
-    const safeTitle = searchKey.replace(/\s+/g, '_'); // e.g. "spider_man"
+    state.step = "ask_thumbnail";
+    await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
     
-    const newQ = `${quality.toLowerCase()}_${format.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-    const gatewayId = `${safeTitle}_${newQ}`; // e.g. avatar_1080p_web
+    const keyboard = {
+      inline_keyboard: [[
+        { text: "✅ Yes", callback_data: "thumb_yes" },
+        { text: "❌ No", callback_data: "thumb_no" }
+      ]]
+    };
     
-    // Load existing Movie Data to append quality if it already exists
-    let movieData = { title: state.title, year: state.year, rating: state.rating, qualities: [] };
-    const existingStr = await kv.get(searchKey);
-    if (existingStr) {
-      try { movieData = JSON.parse(existingStr); } catch(e) {}
-    }
+    return fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, { 
+      method: "POST", headers: {"Content-Type": "application/json"}, 
+      body: JSON.stringify({ chat_id: chatId, text: "🖼 <b>Do you want to add a Thumbnail for the Group Message?</b>", parse_mode: "HTML", reply_markup: keyboard }) 
+    });
+  }
 
-    // Add new quality entry
-    let exists = movieData.qualities.some(q => q.q === gatewayId);
-    if (!exists) {
-      const firstFileType = (state.files && state.files.length > 0) ? state.files[0].type : "video";
-      const firstFileId = (state.files && state.files.length > 0) ? state.files[0].id : "grouped_files";
-      
-      movieData.qualities.push({
-        id: firstFileId,
-        type: firstFileType,
-        name: `${quality} ${format}`.trim(),
-        caption: `🎬 ${quality} (${format})`.trim(),
-        q: gatewayId // EXACT Gateway ID (e.g. avatar_1080p_web)
-      });
-    }
-
-    await kv.put(searchKey, JSON.stringify(movieData));
-    await kv.delete(`admin_state_${chatId}`);
-
-    // --- SAVE TO SEPARATE FILE ID DATABASE ---
-    if (env.BLACK_BULL_CINEMA_FILEID) {
-      const filesToSave = state.files.map(f => ({
-        id: f.id,
-        type: f.type,
-        caption: ""
-      }));
-      await env.BLACK_BULL_CINEMA_FILEID.put(gatewayId, JSON.stringify(filesToSave));
-    } else {
-      console.warn("BLACK_BULL_CINEMA_FILEID namespace is not bound!");
-    }
-
-    return sendMsg(`✅ <b>Successfully Saved to KV!</b>\n\n📌 <b>Key:</b> <code>${searchKey}</code>\n🎬 <b>Total Qualities:</b> ${movieData.qualities.length}\n📦 <b>Grouped Files:</b> ${state.files.length}\n🔗 <b>Gateway ID:</b> <code>${gatewayId}</code>\n\n<i>Forward another video to add more qualities or a new movie.</i>`);
+  // Step 5: Receive Thumbnail Photo
+  if (state.step === "wait_for_thumbnail" && msg.photo) {
+    const thumbId = msg.photo[msg.photo.length - 1].file_id;
+    return finalizeSave(chatId, state, env, thumbId);
   }
 
   // Fallback for private chat
   if (!text.startsWith("/") && Object.keys(state).length === 0) {
     return sendMsg("👋 <b>Admin Uploader Panel</b>\nForward any file (Video, Document, Audio, Photo) to me to start uploading to KV. You can forward multiple files to group them into a single quality.");
   }
+}
+
+// ══════════════════════════════════════════════
+// THUMBNAIL & FINALIZATION LOGIC
+// ══════════════════════════════════════════════
+
+async function handleCallback(cb, env) {
+  const chatId = cb.message.chat.id;
+  const data = cb.data;
+  const msgId = cb.message.message_id;
+
+  const kv = env.BLACK_BULL_CINEMA;
+  let state = {};
+  const stateStr = await kv.get(`admin_state_${chatId}`);
+  if (stateStr) state = JSON.parse(stateStr);
+
+  const editMsg = async (msgText) => fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/editMessageText`, { 
+    method: "POST", headers: {"Content-Type": "application/json"}, 
+    body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: msgText, parse_mode: "HTML" }) 
+  });
+
+  if (state.step === "ask_thumbnail") {
+    if (data === "thumb_yes") {
+      state.step = "wait_for_thumbnail";
+      await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
+      await editMsg("🖼 <b>Please send the Thumbnail Photo now.</b>\n<i>(Type /cancel to abort)</i>");
+    } else if (data === "thumb_no") {
+      await editMsg("🚫 <b>No thumbnail selected. Saving...</b>");
+      await finalizeSave(chatId, state, env, null);
+    }
+  }
+}
+
+async function finalizeSave(chatId, state, env, thumbId) {
+  const kv = env.BLACK_BULL_CINEMA;
+  const searchKey = state.title.toLowerCase().trim();
+  const safeTitle = searchKey.replace(/\s+/g, '_'); 
+  
+  const newQ = `${state.quality.toLowerCase()}_${state.format.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+  const gatewayId = `${safeTitle}_${newQ}`; 
+  
+  let movieData = { title: state.title, year: state.year, rating: state.rating, qualities: [] };
+  const existingStr = await kv.get(searchKey);
+  if (existingStr) {
+    try { movieData = JSON.parse(existingStr); } catch(e) {}
+  }
+
+  if (thumbId) {
+    movieData.thumb = thumbId;
+  }
+
+  let exists = movieData.qualities.some(q => q.q === gatewayId);
+  if (!exists) {
+    const firstFileType = (state.files && state.files.length > 0) ? state.files[0].type : "video";
+    const firstFileId = (state.files && state.files.length > 0) ? state.files[0].id : "grouped_files";
+    
+    movieData.qualities.push({
+      id: firstFileId,
+      type: firstFileType,
+      name: `${state.quality} ${state.format}`.trim(),
+      caption: `🎬 ${state.quality} (${state.format})`.trim(),
+      q: gatewayId 
+    });
+  }
+
+  await kv.put(searchKey, JSON.stringify(movieData));
+  await kv.delete(`admin_state_${chatId}`);
+
+  if (env.BLACK_BULL_CINEMA_FILEID) {
+    const filesToSave = state.files.map(f => ({
+      id: f.id,
+      type: f.type,
+      caption: ""
+    }));
+    await env.BLACK_BULL_CINEMA_FILEID.put(gatewayId, JSON.stringify(filesToSave));
+  }
+
+  const sendMsg = async (msgText) => fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, { 
+    method: "POST", headers: {"Content-Type": "application/json"}, 
+    body: JSON.stringify({ chat_id: chatId, text: msgText, parse_mode: "HTML" }) 
+  });
+
+  return sendMsg(`✅ <b>Successfully Saved to KV!</b>\n\n📌 <b>Key:</b> <code>${searchKey}</code>\n🎬 <b>Total Qualities:</b> ${movieData.qualities.length}\n📦 <b>Grouped Files:</b> ${state.files.length}\n🖼 <b>Thumbnail:</b> ${thumbId ? "Yes" : "No"}\n🔗 <b>Gateway ID:</b> <code>${gatewayId}</code>\n\n<i>Forward another video to add more qualities or a new movie.</i>`);
 }
 
 // ══════════════════════════════════════════════
@@ -368,15 +452,27 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
       keyboard.push([{ text: "🎬 Click Here to Download", url: `${baseUrl}/?bot=${botUser}` }]);
     }
 
-    const payload = {
-      chat_id: chatId,
-      text: text,
-      parse_mode: "HTML",
-      reply_to_message_id: replyToMsgId,
-      reply_markup: { inline_keyboard: keyboard }
-    };
+    const tgApiUrl = movieData.thumb 
+      ? `https://api.telegram.org/bot${botToken}/sendPhoto`
+      : `https://api.telegram.org/bot${botToken}/sendMessage`;
+      
+    const payload = movieData.thumb 
+      ? {
+          chat_id: chatId,
+          photo: movieData.thumb,
+          caption: text,
+          parse_mode: "HTML",
+          reply_to_message_id: replyToMsgId,
+          reply_markup: { inline_keyboard: keyboard }
+        }
+      : {
+          chat_id: chatId,
+          text: text,
+          parse_mode: "HTML",
+          reply_to_message_id: replyToMsgId,
+          reply_markup: { inline_keyboard: keyboard }
+        };
 
-    const tgApiUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
     try {
       const res = await fetch(tgApiUrl, {
         method: "POST",
