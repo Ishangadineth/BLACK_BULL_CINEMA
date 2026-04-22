@@ -36,10 +36,28 @@ async function handleMessage(msg, env) {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
 
-  // 1. ADMIN UPLOADER LOGIC (Private Chat)
+  // Array of bots
+  const bots = [
+    env.BOT_TOKEN_1, env.BOT_TOKEN_2, env.BOT_TOKEN_3, env.BOT_TOKEN_4,
+    env.BOT_TOKEN_5, env.BOT_TOKEN_6, env.BOT_TOKEN_7
+  ].filter(Boolean);
+
+  if (bots.length === 0) {
+    console.error("No valid bots available!");
+    return;
+  }
+
+  // 1. PRIVATE CHAT LOGIC
   if (msg.chat.type === "private") {
-    // Admin Lock: Only respond if ADMIN_ID variable is set and matches
+    // A) DEEP LINKING: User requests a specific file
+    if (text.startsWith("/start ")) {
+      const payload = text.replace("/start ", "").trim();
+      if (payload) return handleStartCommand(chatId, payload, env, bots);
+    }
+
+    // B) ADMIN UPLOADER LOGIC
     if (!env.ADMIN_ID || chatId.toString() !== env.ADMIN_ID) {
+      if (text.startsWith("/start")) return; // Silently ignore generic /start for non-admins
       const tgApiUrl = `https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`;
       await fetch(tgApiUrl, {
         method: "POST", headers: {"Content-Type": "application/json"},
@@ -57,22 +75,6 @@ async function handleMessage(msg, env) {
   // 2. GROUP MANAGER LOGIC
   // Ignore commands starting with "/"
   if (text.startsWith("/")) return;
-
-  // Array of 7 Bots (Tokens only) from Environment Variables
-  const bots = [
-    env.BOT_TOKEN_1,
-    env.BOT_TOKEN_2,
-    env.BOT_TOKEN_3,
-    env.BOT_TOKEN_4,
-    env.BOT_TOKEN_5,
-    env.BOT_TOKEN_6,
-    env.BOT_TOKEN_7
-  ].filter(Boolean); // Only filter out missing tokens
-
-  if (bots.length === 0) {
-    console.error("No valid bots available! Please check variables.");
-    return;
-  }
 
   // Round-Robin Logic using modulo operator
   const botIndex = msgId % bots.length;
@@ -174,12 +176,69 @@ async function handleAdminLogic(msg, env) {
     await kv.put(searchKey, JSON.stringify(movieData));
     await kv.delete(`admin_state_${chatId}`);
 
+    // --- SAVE TO SEPARATE FILE ID DATABASE ---
+    // User requested to keep file IDs in a separate DB: BLACK_BULL_CINEMA_FILEID
+    if (env.BLACK_BULL_CINEMA_FILEID) {
+      const fileKey = `FILE_${state.movieId}_${newQ}`;
+      await env.BLACK_BULL_CINEMA_FILEID.put(fileKey, JSON.stringify({
+        file_id: state.fileId,
+        type: state.fileType || "video"
+      }));
+    } else {
+      console.warn("BLACK_BULL_CINEMA_FILEID namespace is not bound!");
+    }
+
     return sendMsg(`✅ <b>Successfully Saved to KV!</b>\n\n📌 <b>Key:</b> <code>${searchKey}</code>\n🎬 <b>Total Qualities:</b> ${movieData.qualities.length}\n\n<i>Forward another video to add more qualities or a new movie.</i>`);
   }
 
   // Fallback for private chat
   if (!text.startsWith("/") && Object.keys(state).length === 0) {
     return sendMsg("👋 <b>Admin Uploader Panel</b>\nForward any file (Video, Document, Audio, Photo) to me to start uploading to KV.");
+  }
+}
+
+// ══════════════════════════════════════════════
+// DEEP LINKING LOGIC (SENDING FILE TO USER)
+// ══════════════════════════════════════════════
+
+async function handleStartCommand(chatId, payload, env, bots) {
+  if (!env.BLACK_BULL_CINEMA_FILEID) {
+    const tgApiUrl = `https://api.telegram.org/bot${bots[0]}/sendMessage`;
+    await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "❌ <b>Database Error:</b> File database not connected.", parse_mode: "HTML" }) });
+    return;
+  }
+
+  const fileKey = `FILE_${payload}`; // e.g. FILE_Movie_01_1080p_webdl
+  const fileDataStr = await env.BLACK_BULL_CINEMA_FILEID.get(fileKey);
+  
+  if (!fileDataStr) {
+    const tgApiUrl = `https://api.telegram.org/bot${bots[0]}/sendMessage`;
+    await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "❌ <b>File not found or expired.</b>", parse_mode: "HTML" }) });
+    return;
+  }
+
+  const fileData = JSON.parse(fileDataStr);
+  const method = fileData.type === "photo" ? "sendPhoto" : 
+                 (fileData.type === "audio" ? "sendAudio" : 
+                 (fileData.type === "document" ? "sendDocument" : "sendVideo"));
+  
+  const field = fileData.type === "photo" ? "photo" : 
+                (fileData.type === "audio" ? "audio" : 
+                (fileData.type === "document" ? "document" : "video"));
+
+  // Send the file using the retry loop
+  for (const botToken of bots) {
+    const tgApiUrl = `https://api.telegram.org/bot${botToken}/${method}`;
+    try {
+      const res = await fetch(tgApiUrl, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, [field]: fileData.file_id })
+      });
+      const data = await res.json();
+      if (data.ok) return; // Success! Loop exits.
+    } catch (e) {
+      console.error("Failed to send file with token:", e);
+    }
   }
 }
 
