@@ -179,11 +179,12 @@ async function handleAdminLogic(msg, env) {
     // --- SAVE TO SEPARATE FILE ID DATABASE ---
     // User requested to keep file IDs in a separate DB: BLACK_BULL_CINEMA_FILEID
     if (env.BLACK_BULL_CINEMA_FILEID) {
-      const fileKey = `FILE_${state.movieId}_${newQ}`;
-      await env.BLACK_BULL_CINEMA_FILEID.put(fileKey, JSON.stringify({
-        file_id: state.fileId,
-        type: state.fileType || "video"
-      }));
+      const fileKey = `${state.movieId}_${newQ}`;
+      await env.BLACK_BULL_CINEMA_FILEID.put(fileKey, JSON.stringify([{
+        id: state.fileId,
+        type: state.fileType || "video",
+        caption: ""
+      }]));
     } else {
       console.warn("BLACK_BULL_CINEMA_FILEID namespace is not bound!");
     }
@@ -208,7 +209,7 @@ async function handleStartCommand(chatId, payload, env, bots) {
     return;
   }
 
-  const fileKey = `FILE_${payload}`; // e.g. FILE_Movie_01_1080p_webdl
+  const fileKey = payload; // Payload is exactly the key now, e.g. Movie_01_1080p_webdl
   const fileDataStr = await env.BLACK_BULL_CINEMA_FILEID.get(fileKey);
   
   if (!fileDataStr) {
@@ -217,7 +218,9 @@ async function handleStartCommand(chatId, payload, env, bots) {
     return;
   }
 
-  const fileData = JSON.parse(fileDataStr);
+  const fileArray = JSON.parse(fileDataStr);
+  const fileData = Array.isArray(fileArray) ? fileArray[0] : fileArray;
+
   const method = fileData.type === "photo" ? "sendPhoto" : 
                  (fileData.type === "audio" ? "sendAudio" : 
                  (fileData.type === "document" ? "sendDocument" : "sendVideo"));
@@ -232,7 +235,7 @@ async function handleStartCommand(chatId, payload, env, bots) {
     try {
       const res = await fetch(tgApiUrl, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, [field]: fileData.file_id })
+        body: JSON.stringify({ chat_id: chatId, [field]: fileData.id || fileData.file_id, caption: fileData.caption || "" })
       });
       const data = await res.json();
       if (data.ok) return; // Success! Loop exits.
