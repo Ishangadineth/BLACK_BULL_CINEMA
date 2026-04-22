@@ -123,20 +123,12 @@ async function handleAdminLogic(msg, env) {
   else if (msg.photo) { fileId = msg.photo[msg.photo.length - 1].file_id; fileType = "photo"; }
 
   if (fileId && !state.step) {
-    state = { step: "ask_id", fileId: fileId, fileType: fileType };
+    state = { step: "ask_details", fileId: fileId, fileType: fileType };
     await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
-    return sendMsg("🎬 <b>File Received!</b>\n\n1️⃣ What is the <b>Movie ID</b> for Gateway? (e.g. <code>Movie_1</code>)\n\n<i>Type /cancel to abort.</i>");
+    return sendMsg("🎬 <b>File Received!</b>\n\n1️⃣ Enter <b>Movie Name, Year, Rating</b>\n<i>(Comma separated. e.g: Avatar, 2009, 7.9)</i>\n\n<i>Type /cancel to abort.</i>");
   }
 
   // Step 2: Ask Title, Year, Rating
-  if (state.step === "ask_id" && text) {
-    state.movieId = text;
-    state.step = "ask_details";
-    await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
-    return sendMsg("2️⃣ Enter <b>Movie Name, Year, Rating</b>\n<i>(Comma separated. e.g: Avatar, 2009, 7.9)</i>");
-  }
-
-  // Step 3: Ask Quality and Format
   if (state.step === "ask_details" && text) {
     const parts = text.split(",").map(s => s.trim());
     state.title = parts[0] || "Unknown";
@@ -144,43 +136,46 @@ async function handleAdminLogic(msg, env) {
     state.rating = parts[2] || "N/A";
     state.step = "ask_quality";
     await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
-    return sendMsg("3️⃣ Enter <b>Quality, Format</b>\n<i>(Comma separated. e.g: 1080p, WEB-DL)</i>");
+    return sendMsg("2️⃣ Enter <b>Quality, Format</b>\n<i>(Comma separated. e.g: 1080p, WEB)</i>");
   }
 
-  // Step 4: Save to KV
+  // Step 3: Save to KV
   if (state.step === "ask_quality" && text) {
     const parts = text.split(",").map(s => s.trim());
     const quality = parts[0] || "Unknown";
     const format = parts[1] || "";
     
-    const searchKey = state.title.toLowerCase();
+    const searchKey = state.title.toLowerCase().trim();
+    const safeTitle = searchKey.replace(/\s+/g, '_'); // e.g. "spider_man"
+    
+    const newQ = `${quality.toLowerCase()}_${format.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+    const gatewayId = `${safeTitle}_${newQ}`; // e.g. avatar_1080p_web
     
     // Load existing Movie Data to append quality if it already exists
-    let movieData = { id: state.movieId, title: state.title, year: state.year, rating: state.rating, qualities: [] };
+    let movieData = { title: state.title, year: state.year, rating: state.rating, qualities: [] };
     const existingStr = await kv.get(searchKey);
     if (existingStr) {
       try { movieData = JSON.parse(existingStr); } catch(e) {}
     }
 
-    const newQ = `${quality.toLowerCase()}_${format.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-    
     // Add new quality entry
-    movieData.qualities.push({
-      id: state.fileId, // Saved for Gateway extraction
-      type: state.fileType || "video",
-      name: `${quality} ${format}`.trim(),
-      caption: `🎬 ${quality} (${format})`.trim(),
-      q: newQ
-    });
+    let exists = movieData.qualities.some(q => q.q === gatewayId);
+    if (!exists) {
+      movieData.qualities.push({
+        id: state.fileId,
+        type: state.fileType || "video",
+        name: `${quality} ${format}`.trim(),
+        caption: `🎬 ${quality} (${format})`.trim(),
+        q: gatewayId // EXACT Gateway ID (e.g. avatar_1080p_web)
+      });
+    }
 
     await kv.put(searchKey, JSON.stringify(movieData));
     await kv.delete(`admin_state_${chatId}`);
 
     // --- SAVE TO SEPARATE FILE ID DATABASE ---
-    // User requested to keep file IDs in a separate DB: BLACK_BULL_CINEMA_FILEID
     if (env.BLACK_BULL_CINEMA_FILEID) {
-      const fileKey = `${state.movieId}_${newQ}`;
-      await env.BLACK_BULL_CINEMA_FILEID.put(fileKey, JSON.stringify([{
+      await env.BLACK_BULL_CINEMA_FILEID.put(gatewayId, JSON.stringify([{
         id: state.fileId,
         type: state.fileType || "video",
         caption: ""
@@ -189,7 +184,7 @@ async function handleAdminLogic(msg, env) {
       console.warn("BLACK_BULL_CINEMA_FILEID namespace is not bound!");
     }
 
-    return sendMsg(`✅ <b>Successfully Saved to KV!</b>\n\n📌 <b>Key:</b> <code>${searchKey}</code>\n🎬 <b>Total Qualities:</b> ${movieData.qualities.length}\n\n<i>Forward another video to add more qualities or a new movie.</i>`);
+    return sendMsg(`✅ <b>Successfully Saved to KV!</b>\n\n📌 <b>Key:</b> <code>${searchKey}</code>\n🎬 <b>Total Qualities:</b> ${movieData.qualities.length}\n🔗 <b>File ID:</b> <code>${gatewayId}</code>\n\n<i>Forward another video to add more qualities or a new movie.</i>`);
   }
 
   // Fallback for private chat
@@ -301,7 +296,7 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
       continue;
     }
 
-    const baseUrl = `https://idsmovieplanet.ishangadineth.online/?id=${movieData.id}&bot=${botUser}`;
+    const baseUrl = `https://idsmovieplanet.ishangadineth.online`;
 
     // Dynamically generate buttons based on 'qualities' array in KV
     const keyboard = [];
@@ -309,15 +304,16 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
       for (let i = 0; i < movieData.qualities.length; i += 2) {
         const row = [];
         const q1 = movieData.qualities[i];
-        row.push({ text: `🎬 ${q1.name}`, url: `${baseUrl}&q=${q1.q}` });
+        row.push({ text: `🎬 ${q1.name}`, url: `${baseUrl}/?id=${q1.q}&bot=${botUser}` });
         if (i + 1 < movieData.qualities.length) {
           const q2 = movieData.qualities[i + 1];
-          row.push({ text: `🎬 ${q2.name}`, url: `${baseUrl}&q=${q2.q}` });
+          row.push({ text: `🎬 ${q2.name}`, url: `${baseUrl}/?id=${q2.q}&bot=${botUser}` });
         }
         keyboard.push(row);
       }
     } else {
-      keyboard.push([{ text: "🎬 Click Here to Download", url: baseUrl }]);
+      // Fallback
+      keyboard.push([{ text: "🎬 Click Here to Download", url: `${baseUrl}/?bot=${botUser}` }]);
     }
 
     const payload = {
