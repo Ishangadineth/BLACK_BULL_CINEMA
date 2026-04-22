@@ -113,7 +113,7 @@ async function handleAdminLogic(msg, env) {
     return sendMsg("❌ <b>Upload Cancelled.</b> Send a new video to start again.");
   }
 
-  // Step 1: Receive File
+  // Step 1: Receive File(s)
   let fileId = null;
   let fileType = "file";
   
@@ -122,13 +122,40 @@ async function handleAdminLogic(msg, env) {
   else if (msg.audio) { fileId = msg.audio.file_id; fileType = "audio"; }
   else if (msg.photo) { fileId = msg.photo[msg.photo.length - 1].file_id; fileType = "photo"; }
 
-  if (fileId && !state.step) {
-    state = { step: "ask_details", fileId: fileId, fileType: fileType };
-    await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
-    return sendMsg("🎬 <b>File Received!</b>\n\n1️⃣ Enter <b>Movie Name, Year, Rating</b>\n<i>(Comma separated. e.g: Avatar, 2009, 7.9)</i>\n\n<i>Type /cancel to abort.</i>");
+  if (fileId) {
+    if (!state.step || state.step === "accumulate") {
+      state.step = "accumulate";
+      await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
+      
+      // Save each file independently to prevent KV race conditions during rapid multi-file forwarding
+      await kv.put(`admin_file_${chatId}_${msg.message_id}`, JSON.stringify({ id: fileId, type: fileType }));
+      
+      return sendMsg(`✅ <b>File Received!</b>\n\n<i>Forward more files to group them together, or type </i>/done<i> when you have sent all files for this set.</i>\n\n<i>Type /cancel to abort.</i>`);
+    }
   }
 
-  // Step 2: Ask Title, Year, Rating
+  // Step 2: Finish accumulation
+  if (state.step === "accumulate" && text === "/done") {
+    const list = await kv.list({ prefix: `admin_file_${chatId}_` });
+    if (list.keys.length === 0) {
+      return sendMsg("⚠️ No files received yet. Forward files first.");
+    }
+    
+    const files = [];
+    for (const keyObj of list.keys) {
+      const fileStr = await kv.get(keyObj.name);
+      if (fileStr) files.push(JSON.parse(fileStr));
+      await kv.delete(keyObj.name); // cleanup
+    }
+    
+    state.step = "ask_details";
+    state.files = files;
+    await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
+    
+    return sendMsg(`📦 <b>${files.length} Files Grouped Successfully!</b>\n\n1️⃣ Enter <b>Movie Name, Year, Rating</b>\n<i>(Comma separated. e.g: Avatar, 2009, 7.9)</i>`);
+  }
+
+  // Step 3: Ask Title, Year, Rating
   if (state.step === "ask_details" && text) {
     const parts = text.split(",").map(s => s.trim());
     state.title = parts[0] || "Unknown";
@@ -139,7 +166,7 @@ async function handleAdminLogic(msg, env) {
     return sendMsg("2️⃣ Enter <b>Quality, Format</b>\n<i>(Comma separated. e.g: 1080p, WEB)</i>");
   }
 
-  // Step 3: Save to KV
+  // Step 4: Save to KV
   if (state.step === "ask_quality" && text) {
     const parts = text.split(",").map(s => s.trim());
     const quality = parts[0] || "Unknown";
@@ -161,9 +188,12 @@ async function handleAdminLogic(msg, env) {
     // Add new quality entry
     let exists = movieData.qualities.some(q => q.q === gatewayId);
     if (!exists) {
+      const firstFileType = (state.files && state.files.length > 0) ? state.files[0].type : "video";
+      const firstFileId = (state.files && state.files.length > 0) ? state.files[0].id : "grouped_files";
+      
       movieData.qualities.push({
-        id: state.fileId,
-        type: state.fileType || "video",
+        id: firstFileId,
+        type: firstFileType,
         name: `${quality} ${format}`.trim(),
         caption: `🎬 ${quality} (${format})`.trim(),
         q: gatewayId // EXACT Gateway ID (e.g. avatar_1080p_web)
@@ -175,21 +205,22 @@ async function handleAdminLogic(msg, env) {
 
     // --- SAVE TO SEPARATE FILE ID DATABASE ---
     if (env.BLACK_BULL_CINEMA_FILEID) {
-      await env.BLACK_BULL_CINEMA_FILEID.put(gatewayId, JSON.stringify([{
-        id: state.fileId,
-        type: state.fileType || "video",
+      const filesToSave = state.files.map(f => ({
+        id: f.id,
+        type: f.type,
         caption: ""
-      }]));
+      }));
+      await env.BLACK_BULL_CINEMA_FILEID.put(gatewayId, JSON.stringify(filesToSave));
     } else {
       console.warn("BLACK_BULL_CINEMA_FILEID namespace is not bound!");
     }
 
-    return sendMsg(`✅ <b>Successfully Saved to KV!</b>\n\n📌 <b>Key:</b> <code>${searchKey}</code>\n🎬 <b>Total Qualities:</b> ${movieData.qualities.length}\n🔗 <b>File ID:</b> <code>${gatewayId}</code>\n\n<i>Forward another video to add more qualities or a new movie.</i>`);
+    return sendMsg(`✅ <b>Successfully Saved to KV!</b>\n\n📌 <b>Key:</b> <code>${searchKey}</code>\n🎬 <b>Total Qualities:</b> ${movieData.qualities.length}\n📦 <b>Grouped Files:</b> ${state.files.length}\n🔗 <b>Gateway ID:</b> <code>${gatewayId}</code>\n\n<i>Forward another video to add more qualities or a new movie.</i>`);
   }
 
   // Fallback for private chat
   if (!text.startsWith("/") && Object.keys(state).length === 0) {
-    return sendMsg("👋 <b>Admin Uploader Panel</b>\nForward any file (Video, Document, Audio, Photo) to me to start uploading to KV.");
+    return sendMsg("👋 <b>Admin Uploader Panel</b>\nForward any file (Video, Document, Audio, Photo) to me to start uploading to KV. You can forward multiple files to group them into a single quality.");
   }
 }
 
@@ -214,18 +245,21 @@ async function handleStartCommand(chatId, payload, env, bots) {
   }
 
   const fileArray = JSON.parse(fileDataStr);
-  const fileData = Array.isArray(fileArray) ? fileArray[0] : fileArray;
+  const filesToProcess = Array.isArray(fileArray) ? fileArray : [fileArray];
 
-  const method = fileData.type === "photo" ? "sendPhoto" : 
-                 (fileData.type === "audio" ? "sendAudio" : 
-                 (fileData.type === "document" ? "sendDocument" : "sendVideo"));
+  // Helper functions
+  const getMethod = (type) => type === "photo" ? "sendPhoto" : (type === "audio" ? "sendAudio" : (type === "document" ? "sendDocument" : "sendVideo"));
+  const getField = (type) => type === "photo" ? "photo" : (type === "audio" ? "audio" : (type === "document" ? "document" : "video"));
+
+  // Send the file using the retry loop. Since there may be multiple files, we first find a working bot
+  // to avoid retrying 7 bots for every single file.
+  let workingBotToken = null;
   
-  const field = fileData.type === "photo" ? "photo" : 
-                (fileData.type === "audio" ? "audio" : 
-                (fileData.type === "document" ? "document" : "video"));
-
-  // Send the file using the retry loop
   for (const botToken of bots) {
+    const fileData = filesToProcess[0];
+    const method = getMethod(fileData.type);
+    const field = getField(fileData.type);
+    
     const tgApiUrl = `https://api.telegram.org/bot${botToken}/${method}`;
     try {
       const res = await fetch(tgApiUrl, {
@@ -233,9 +267,27 @@ async function handleStartCommand(chatId, payload, env, bots) {
         body: JSON.stringify({ chat_id: chatId, [field]: fileData.id || fileData.file_id, caption: fileData.caption || "" })
       });
       const data = await res.json();
-      if (data.ok) return; // Success! Loop exits.
+      if (data.ok) {
+        workingBotToken = botToken;
+        break; // First file sent successfully! Loop exits.
+      }
     } catch (e) {
-      console.error("Failed to send file with token:", e);
+      console.error("Failed to send first file with token:", e);
+    }
+  }
+
+  // If a working bot was found, send the rest of the files in order using that same bot
+  if (workingBotToken && filesToProcess.length > 1) {
+    for (let i = 1; i < filesToProcess.length; i++) {
+      const fileData = filesToProcess[i];
+      const method = getMethod(fileData.type);
+      const field = getField(fileData.type);
+      
+      const tgApiUrl = `https://api.telegram.org/bot${workingBotToken}/${method}`;
+      await fetch(tgApiUrl, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, [field]: fileData.id || fileData.file_id, caption: fileData.caption || "" })
+      });
     }
   }
 }
