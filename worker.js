@@ -152,10 +152,25 @@ async function handleAdminLogic(msg, env) {
       state.step = "accumulate";
       await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
       
-      // Save each file independently to prevent KV race conditions during rapid multi-file forwarding
-      await kv.put(`admin_file_${chatId}_${msg.message_id}`, JSON.stringify({ id: fileId, type: fileType }));
+      // COPY TO DATABASE CHANNEL
+      const dbChannelId = "-1003759058179";
+      const copyUrl = `https://api.telegram.org/bot${env.BOT_TOKEN_1}/copyMessage`;
+      const copyRes = await fetch(copyUrl, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: dbChannelId, from_chat_id: chatId, message_id: msg.message_id })
+      });
+      const copyData = await copyRes.json();
       
-      return sendMsg(`✅ <b>File Received!</b>\n\n<i>Forward more files to group them together, or type </i>/done<i> when you have sent all files for this set.</i>\n\n<i>Type /cancel to abort.</i>`);
+      if (!copyData.ok) {
+        return sendMsg(`❌ <b>Failed to copy to Database Channel!</b>\nError: <code>${copyData.description}</code>\n\n<i>Did you add the Manager Bot to the channel as an Admin?</i>`);
+      }
+      
+      const channelMsgId = copyData.result.message_id;
+
+      // Save each file independently to prevent KV race conditions during rapid multi-file forwarding
+      await kv.put(`admin_file_${chatId}_${msg.message_id}`, JSON.stringify({ id: channelMsgId, type: "channel_msg" }));
+      
+      return sendMsg(`✅ <b>File Saved to Database!</b> <i>(Msg ID: ${channelMsgId})</i>\n\n<i>Forward more files to group them together, or type </i>/done<i> when you have sent all files for this set.</i>\n\n<i>Type /cancel to abort.</i>`);
     }
   }
 

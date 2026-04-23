@@ -88,20 +88,33 @@ async function handleMessage(msg, env) {
 
 // Function to send the actual file (Video/Document/Audio/Photo)
 async function sendFile(botToken, chatId, fileId, type = "video", caption = "") {
-  // Map our internal types to Telegram API methods
-  const typeToMethod = {
-    "video": "sendVideo",
-    "document": "sendDocument",
-    "audio": "sendAudio",
-    "photo": "sendPhoto",
-    "file": "sendDocument" // Fallback
-  };
+  let method = "sendDocument";
+  let requestPayload = { chat_id: chatId, caption: caption, parse_mode: "HTML" };
 
-  const method = typeToMethod[type] || "sendDocument";
+  if (type === "channel_msg" || !isNaN(fileId)) {
+    // It's a Message ID from the Database Channel
+    method = "copyMessage";
+    requestPayload = {
+      chat_id: chatId,
+      from_chat_id: "-1003759058179",
+      message_id: parseInt(fileId),
+      caption: caption, // Optional: override original caption
+      parse_mode: "HTML"
+    };
+  } else {
+    // Fallback for old file_ids
+    const typeToMethod = {
+      "video": "sendVideo",
+      "document": "sendDocument",
+      "audio": "sendAudio",
+      "photo": "sendPhoto",
+      "file": "sendDocument"
+    };
+    method = typeToMethod[type] || "sendDocument";
+    requestPayload[type === "file" ? "document" : type] = fileId;
+  }
+
   const url = `https://api.telegram.org/bot${botToken}/${method}`;
-  
-  const requestPayload = { chat_id: chatId, caption: caption, parse_mode: "HTML" };
-  requestPayload[type === "file" ? "document" : type] = fileId; // Dynamic key assignment
 
   const response = await fetch(url, {
     method: "POST",
