@@ -80,7 +80,7 @@ async function handleMessage(msg, env) {
       
     } else {
       // Normal start without parameters
-      await sendMsg("🎬 <b>Welcome to BLACK BULL Cinema!</b>\n\nPlease use the main group to search for movies.");
+      await sendMsg("🤖 <b>I'm Alive!</b> ✅\n\nI am a BLACK BULL Cinema Sender Bot. Please use the main group to search for movies.");
     }
     return;
   }
