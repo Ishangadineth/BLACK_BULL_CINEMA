@@ -103,9 +103,24 @@ async function sendFile(botToken, chatId, fileId, type = "video", caption = "") 
   const requestPayload = { chat_id: chatId, caption: caption, parse_mode: "HTML" };
   requestPayload[type === "file" ? "document" : type] = fileId; // Dynamic key assignment
 
-  await fetch(url, {
+  const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(requestPayload)
   });
+
+  const data = await response.json();
+  if (!data.ok) {
+    console.error("Telegram API Error:", data.description);
+    const errUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    await fetch(errUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: `❌ <b>Failed to send file.</b>\nError: <code>${data.description}</code>`,
+        parse_mode: "HTML"
+      })
+    });
+  }
 }
