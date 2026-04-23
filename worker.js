@@ -77,7 +77,7 @@ async function handleMessage(msg, env) {
   
   if (text === "/list") {
     const list = await env.BLACK_BULL_CINEMA.list();
-    const movieKeys = list.keys.filter(k => !k.name.startsWith("admin_") && !k.name.startsWith("site_") && !k.name.startsWith("verified_"));
+    const movieKeys = list.keys.filter(k => !k.name.startsWith("admin_") && !k.name.startsWith("site_") && !k.name.startsWith("verified_") && !k.name.startsWith("idx_"));
     
     if (movieKeys.length === 0) {
        await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, { 
@@ -333,7 +333,16 @@ async function handleCallback(cb, env) {
 
   if (data.startsWith("view_")) {
     const movieId = data.split("_")[1];
-    const searchKey = await kv.get(`idx_${movieId}`);
+    
+    // Check FILEID KV for the index first, fallback to main KV for backward compatibility
+    let searchKey = null;
+    if (env.BLACK_BULL_CINEMA_FILEID) {
+      searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
+    }
+    if (!searchKey) {
+      searchKey = await kv.get(`idx_${movieId}`);
+    }
+    
     if (searchKey) {
       const existingStr = await kv.get(searchKey);
       if (existingStr) {
@@ -420,10 +429,10 @@ async function finalizeSave(chatId, state, env, thumbId) {
   }
 
   await kv.put(searchKey, JSON.stringify(movieData));
-  await kv.put(`idx_${movieData.id}`, searchKey); // Secondary index for callback
   await kv.delete(`admin_state_${chatId}`);
 
   if (env.BLACK_BULL_CINEMA_FILEID) {
+    await env.BLACK_BULL_CINEMA_FILEID.put(`idx_${movieData.id}`, searchKey); // Secondary index moved to FILEID KV
     const filesToSave = state.files.map(f => ({
       id: f.id,
       type: f.type,
@@ -543,9 +552,9 @@ async function sendSearchResults(botToken, chatId, replyToMsgId, query, results,
 
   // Default Random Images Array
   const defaultImages = [
-    "https://telegra.ph/file/09641775e714bc21cbdae.jpg", // Change these links to your actual 10 images later
-    "https://telegra.ph/file/9d77490fb1275ff0d1a47.jpg",
-    "https://telegra.ph/file/48d5d4d385f0ef3db9c7a.jpg"
+    "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000", 
+    "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000",
+    "https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=1000"
   ];
   const randomImg = defaultImages[Math.floor(Math.random() * defaultImages.length)];
 
@@ -637,9 +646,9 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
     }
 
     const defaultImages = [
-      "https://telegra.ph/file/09641775e714bc21cbdae.jpg", 
-      "https://telegra.ph/file/9d77490fb1275ff0d1a47.jpg",
-      "https://telegra.ph/file/48d5d4d385f0ef3db9c7a.jpg"
+      "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000", 
+      "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000",
+      "https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=1000"
     ];
     const randomImg = defaultImages[Math.floor(Math.random() * defaultImages.length)];
     const movieThumb = movieData.thumb || randomImg; // Always use an image so editMessageMedia works
