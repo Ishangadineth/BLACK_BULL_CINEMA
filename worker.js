@@ -268,8 +268,19 @@ async function handleAdminLogic(msg, env) {
   }
 
   // Fallback for private chat
-  if (!text.startsWith("/") && Object.keys(state).length === 0) {
-    return sendMsg("👋 <b>Admin Uploader Panel</b>\nForward any file (Video, Document, Audio, Photo) to me to start uploading to KV. You can forward multiple files to group them into a single quality.");
+  if (text && !text.startsWith("/")) {
+    if (Object.keys(state).length > 0) {
+      return sendMsg("⚠️ <b>You are currently in the middle of an upload.</b>\nType /cancel to abort if you want to search movies.");
+    }
+    
+    // Search movies in private chat!
+    const results = await searchMovieInKV(text, env.BLACK_BULL_CINEMA);
+    if (results && results.length > 0) {
+      const userFirstName = msg.chat.first_name || "Admin";
+      return sendSearchResults(env.BOT_TOKEN_1, chatId, msg.message_id, text, results, "all", env, null, userFirstName);
+    } else {
+      return sendMsg(`❌ <b>'${text}' Not found in KV database.</b>\n\n👋 <b>Admin Uploader Panel:</b>\nForward any file to start uploading.`);
+    }
   }
 }
 
