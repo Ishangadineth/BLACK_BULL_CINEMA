@@ -1,0 +1,6 @@
+name = "black-bull-sender-bot"
+main = "worker.js"
+compatibility_date = "2024-04-23"
+
+# Note: You will need to set BOT_TOKEN via the Cloudflare Dashboard 
+# and bind the BLACK_BULL_CINEMA_FILEID KV namespace via the Dashboard as well.
