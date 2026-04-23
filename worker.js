@@ -106,11 +106,19 @@ async function handleMessage(msg, env) {
   const selectedToken = bots[botIndex];
 
   // Search for the movie in BLACK_BULL_CINEMA KV Storage
-  const movieData = await searchMovieInKV(text, env.BLACK_BULL_CINEMA);
+  const results = await searchMovieInKV(text, env.BLACK_BULL_CINEMA);
 
   // If a movie is found, process the UI logic and reply
-  if (movieData) {
-    await sendMovieReplyWithRetry(bots, botIndex, chatId, msgId, movieData, env);
+  if (results && results.length > 0) {
+    const userFirstName = msg.chat.first_name || "User";
+    await sendSearchResults(bots[0], chatId, msgId, text, results, "all", env, null, userFirstName);
+  } else {
+    // Optional: send a "not found" message
+    const kb = { inline_keyboard: [[{ text: "😮 මෙතන නෑනේ (Request Movie)", callback_data: `req_${text.substring(0, 40)}` }]] };
+    await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ chat_id: chatId, text: `❌ ඔයා හොයන '<b>${text}</b>' අපේ පද්ධතියේ නෑ.\n\nපහළ බට්න් එක ඔබලා Admin ට Request එකක් දාන්න. 👇`, parse_mode: "HTML", reply_markup: kb })
+    });
   }
 }
 
@@ -209,11 +217,15 @@ async function handleAdminLogic(msg, env) {
       await kv.delete(keyObj.name); // cleanup
     }
     
-    state.step = "ask_details";
+    state.step = "ask_type";
     state.files = files;
     await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
     
-    return sendMsg(`📦 <b>${files.length} Files Grouped Successfully!</b>\n\n1️⃣ Enter <b>Movie Name, Year, Rating</b>\n<i>(Comma separated. e.g: Avatar, 2009, 7.9)</i>`);
+    const kb = { inline_keyboard: [[ { text: "🎬 Movie", callback_data: "type_movie" }, { text: "📺 Series", callback_data: "type_series" } ]] };
+    return fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, { 
+      method: "POST", headers: {"Content-Type": "application/json"}, 
+      body: JSON.stringify({ chat_id: chatId, text: `📦 <b>${files.length} Files Grouped Successfully!</b>\n\nWhat type of content is this?`, parse_mode: "HTML", reply_markup: kb }) 
+    });
   }
 
   // Step 3: Ask Title, Year, Rating
@@ -280,6 +292,16 @@ async function handleCallback(cb, env) {
     body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: msgText, parse_mode: "HTML" }) 
   });
 
+  if (state.step === "ask_type") {
+    if (data === "type_movie" || data === "type_series") {
+      state.is_series = data === "type_series";
+      state.step = "ask_details";
+      await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
+      await editMsg(`✅ <b>Type selected:</b> ${state.is_series ? '📺 Series' : '🎬 Movie'}\n\n1️⃣ Enter <b>Name, Year, Rating</b>\n<i>(Comma separated. e.g: Avatar, 2009, 7.9)</i>`);
+    }
+    return;
+  }
+
   if (state.step === "ask_thumbnail") {
     if (data === "thumb_yes") {
       state.step = "wait_for_thumbnail";
@@ -288,6 +310,52 @@ async function handleCallback(cb, env) {
     } else if (data === "thumb_no") {
       await editMsg("🚫 <b>No thumbnail selected. Saving...</b>");
       await finalizeSave(chatId, state, env, null);
+    }
+    return;
+  }
+
+  // ════ CALLBACKS FOR SEARCH UI ════
+  const bots = [];
+  for (let i = 1; i <= 7; i++) {
+    if (env[`BOT_TOKEN_${i}`]) bots.push(env[`BOT_TOKEN_${i}`]);
+  }
+
+  if (data.startsWith("view_")) {
+    const movieId = data.split("_")[1];
+    const searchKey = await kv.get(`idx_${movieId}`);
+    if (searchKey) {
+      const existingStr = await kv.get(searchKey);
+      if (existingStr) {
+        const movieData = JSON.parse(existingStr);
+        await sendMovieReplyWithRetry(bots, 0, chatId, cb.message.reply_to_message?.message_id || msgId, movieData, env, msgId);
+      }
+    }
+  }
+
+  if (data.startsWith("filter_")) {
+    const parts = data.split("_");
+    const fType = parts[1]; // movies or series
+    const query = parts.slice(2).join("_");
+    const results = await searchMovieInKV(query, kv);
+    if (results && results.length > 0) {
+      const userFirstName = cb.message.chat.first_name || "User";
+      await sendSearchResults(bots[0], chatId, cb.message.reply_to_message?.message_id || msgId, query, results, fType, env, msgId, userFirstName);
+    }
+  }
+
+  if (data.startsWith("req_")) {
+    const query = data.substring(4);
+    if (env.ADMIN_ID) {
+      const adminMsg = `📢 <b>New Request from User!</b>\n👤 <b>User:</b> <a href="tg://user?id=${chatId}">${cb.message.chat.first_name || "User"}</a> (<code>${chatId}</code>)\n🔎 <b>Requested:</b> ${query}`;
+      await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, { 
+        method: "POST", headers: {"Content-Type": "application/json"}, 
+        body: JSON.stringify({ chat_id: env.ADMIN_ID, text: adminMsg, parse_mode: "HTML" }) 
+      });
+      // Answer Callback
+      await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/answerCallbackQuery`, {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ callback_query_id: cb.id, text: "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!", show_alert: true })
+      });
     }
   }
 }
@@ -300,10 +368,26 @@ async function finalizeSave(chatId, state, env, thumbId) {
   const newQ = `${state.quality.toLowerCase()}_${state.format.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
   const gatewayId = `${safeTitle}_${newQ}`; 
   
-  let movieData = { title: state.title, year: state.year, rating: state.rating, qualities: [] };
+  const movieId = Date.now().toString(36); // Short Unique ID
+
+  let movieData = { 
+    id: movieId, 
+    title: state.title, 
+    year: state.year, 
+    rating: state.rating, 
+    is_series: state.is_series || false, 
+    qualities: [] 
+  };
   const existingStr = await kv.get(searchKey);
   if (existingStr) {
-    try { movieData = JSON.parse(existingStr); } catch(e) {}
+    try { 
+      const parsed = JSON.parse(existingStr); 
+      movieData = parsed;
+      // Ensure existing movies get an ID if missing
+      if (!movieData.id) movieData.id = movieId;
+      // Ensure is_series is updated if not present
+      if (movieData.is_series === undefined) movieData.is_series = state.is_series || false;
+    } catch(e) {}
   }
 
   if (thumbId) {
@@ -325,6 +409,7 @@ async function finalizeSave(chatId, state, env, thumbId) {
   }
 
   await kv.put(searchKey, JSON.stringify(movieData));
+  await kv.put(`idx_${movieData.id}`, searchKey); // Secondary index for callback
   await kv.delete(`admin_state_${chatId}`);
 
   if (env.BLACK_BULL_CINEMA_FILEID) {
@@ -341,7 +426,7 @@ async function finalizeSave(chatId, state, env, thumbId) {
     body: JSON.stringify({ chat_id: chatId, text: msgText, parse_mode: "HTML" }) 
   });
 
-  return sendMsg(`✅ <b>Successfully Saved to KV!</b>\n\n📌 <b>Key:</b> <code>${searchKey}</code>\n🎬 <b>Total Qualities:</b> ${movieData.qualities.length}\n📦 <b>Grouped Files:</b> ${state.files.length}\n🖼 <b>Thumbnail:</b> ${thumbId ? "Yes" : "No"}\n🔗 <b>Gateway ID:</b> <code>${gatewayId}</code>\n\n<i>Forward another video to add more qualities or a new movie.</i>`);
+  return sendMsg(`✅ <b>Successfully Saved to KV!</b>\n\n📌 <b>Key:</b> <code>${searchKey}</code>\n🎬 <b>Type:</b> ${movieData.is_series ? 'Series' : 'Movie'}\n🎬 <b>Total Qualities:</b> ${movieData.qualities.length}\n📦 <b>Grouped Files:</b> ${state.files.length}\n🖼 <b>Thumbnail:</b> ${thumbId ? "Yes" : "No"}\n🔗 <b>Gateway ID:</b> <code>${gatewayId}</code>\n\n<i>Forward another video to add more qualities or a new movie.</i>`);
 }
 
 // ══════════════════════════════════════════════
@@ -420,27 +505,87 @@ async function getBotUsername(token) {
 }
 
 async function searchMovieInKV(query, kv) {
-  if (query.length < 2) return null;
-  if (!kv) return null; // In case KV is not bound correctly
+  if (query.length < 2) return [];
+  if (!kv) return [];
 
   const searchKey = query.toLowerCase();
-  const dataString = await kv.get(searchKey);
+  const list = await kv.list({ prefix: searchKey });
+  const results = [];
 
-  if (dataString) {
-    try {
-      // Expected JSON format: {"id": "12345", "title": "Avatar", "year": "2009", "rating": "7.9"}
-      return JSON.parse(dataString);
-    } catch (e) {
-      console.error("JSON parse error from KV data:", e);
-      return null;
+  for (const keyObj of list.keys) {
+    if (keyObj.name.startsWith("admin_") || keyObj.name.startsWith("config_") || keyObj.name.startsWith("idx_")) continue;
+    const dataString = await kv.get(keyObj.name);
+    if (dataString) {
+      try {
+        results.push(JSON.parse(dataString));
+      } catch (e) {}
     }
   }
-  return null;
+  return results;
 }
 
-async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, movieData, env) {
+async function sendSearchResults(botToken, chatId, replyToMsgId, query, results, filterType, env, editMsgId = null, firstName = "User") {
+  // Filter Logic
+  let filtered = results;
+  if (filterType === "movies") filtered = results.filter(r => !r.is_series);
+  if (filterType === "series") filtered = results.filter(r => r.is_series);
+
+  // Default Random Images Array
+  const defaultImages = [
+    "https://telegra.ph/file/09641775e714bc21cbdae.jpg", // Change these links to your actual 10 images later
+    "https://telegra.ph/file/9d77490fb1275ff0d1a47.jpg",
+    "https://telegra.ph/file/48d5d4d385f0ef3db9c7a.jpg"
+  ];
+  const randomImg = defaultImages[Math.floor(Math.random() * defaultImages.length)];
+
+  const text = `👋 හෙලෝ <b>${firstName}</b>,\n\nබලන්න ඔයා හොයන '<b>${query}</b>' මෙතන තියනවද කියලා.. 👇\n\n📌 <i>ඔයා හොයන්නේ සීරීස් එකක් නම් 'Series' කියන බට්න් එක ඔබලා ඔයාට ඕනි සීරීස් එක තෝරන්න.</i>`;
+
+  const keyboard = [];
+  
+  // Top Filter Buttons
+  keyboard.push([
+    { text: filterType === "movies" ? "✅ 🎬 Movies" : "🎬 Movies", callback_data: `filter_movies_${query}` },
+    { text: filterType === "series" ? "✅ 📺 Series" : "📺 Series", callback_data: `filter_series_${query}` }
+  ]);
+
+  // List Buttons
+  for (const r of filtered) {
+    keyboard.push([{ text: `🎬 ${r.title} (${r.year})`, callback_data: `view_${r.id}` }]);
+  }
+
+  if (filtered.length === 0) {
+    keyboard.push([{ text: "🚫 No results found for this category.", callback_data: "none" }]);
+  }
+
+  // Not Here Button
+  keyboard.push([{ text: "😮 මෙතන නෑනේ", callback_data: `req_${query.substring(0,40)}` }]);
+
+  const payload = {
+    chat_id: chatId,
+    reply_markup: { inline_keyboard: keyboard }
+  };
+
+  let tgApiUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
+  if (editMsgId) {
+    tgApiUrl = `https://api.telegram.org/bot${botToken}/editMessageMedia`;
+    payload.message_id = editMsgId;
+    payload.media = { type: "photo", media: randomImg, caption: text, parse_mode: "HTML" };
+  } else {
+    payload.photo = randomImg;
+    payload.caption = text;
+    payload.parse_mode = "HTML";
+    if (replyToMsgId) payload.reply_to_message_id = replyToMsgId;
+  }
+
+  await fetch(tgApiUrl, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, movieData, env, editMsgId = null) {
   // Format the UI Message Details
-  const text = `🎬 <b>Movie Found!</b>\n\n` +
+  const text = `🎬 <b>${movieData.is_series ? 'Series' : 'Movie'} Found!</b>\n\n` +
     `📌 <b>Title:</b> ${movieData.title}\n` +
     `📅 <b>Year:</b> ${movieData.year}\n` +
     `⭐ <b>Rating:</b> ${movieData.rating}\n\n` +
@@ -460,12 +605,8 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
     const currentIndex = (startIndex + offset) % bots.length;
     const botToken = bots[currentIndex];
 
-    // Fetch username dynamically. If token is invalid, it returns UnknownBot.
     const botUser = await getBotUsername(botToken);
-    if (botUser === "UnknownBot") {
-      console.warn(`Bot ${currentIndex + 1} seems invalid. Skipping to next...`);
-      continue;
-    }
+    if (botUser === "UnknownBot") continue;
 
     // Dynamically generate buttons based on 'qualities' array in KV
     const keyboard = [];
@@ -473,38 +614,41 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
       for (let i = 0; i < movieData.qualities.length; i += 2) {
         const row = [];
         const q1 = movieData.qualities[i];
-        row.push({ text: `🎬 ${q1.name}`, url: `${baseUrl}/?id=${q1.q}&bot=${botUser}` });
+        row.push({ text: `📥 ${q1.name}`, url: `${baseUrl}/?id=${q1.q}&bot=${botUser}` });
         if (i + 1 < movieData.qualities.length) {
           const q2 = movieData.qualities[i + 1];
-          row.push({ text: `🎬 ${q2.name}`, url: `${baseUrl}/?id=${q2.q}&bot=${botUser}` });
+          row.push({ text: `📥 ${q2.name}`, url: `${baseUrl}/?id=${q2.q}&bot=${botUser}` });
         }
         keyboard.push(row);
       }
     } else {
-      // Fallback
-      keyboard.push([{ text: "🎬 Click Here to Download", url: `${baseUrl}/?bot=${botUser}` }]);
+      keyboard.push([{ text: "📥 Click Here to Download", url: `${baseUrl}/?bot=${botUser}` }]);
     }
 
-    const tgApiUrl = movieData.thumb 
-      ? `https://api.telegram.org/bot${botToken}/sendPhoto`
-      : `https://api.telegram.org/bot${botToken}/sendMessage`;
-      
-    const payload = movieData.thumb 
-      ? {
-          chat_id: chatId,
-          photo: movieData.thumb,
-          caption: text,
-          parse_mode: "HTML",
-          reply_to_message_id: replyToMsgId,
-          reply_markup: { inline_keyboard: keyboard }
-        }
-      : {
-          chat_id: chatId,
-          text: text,
-          parse_mode: "HTML",
-          reply_to_message_id: replyToMsgId,
-          reply_markup: { inline_keyboard: keyboard }
-        };
+    const defaultImages = [
+      "https://telegra.ph/file/09641775e714bc21cbdae.jpg", 
+      "https://telegra.ph/file/9d77490fb1275ff0d1a47.jpg",
+      "https://telegra.ph/file/48d5d4d385f0ef3db9c7a.jpg"
+    ];
+    const randomImg = defaultImages[Math.floor(Math.random() * defaultImages.length)];
+    const movieThumb = movieData.thumb || randomImg; // Always use an image so editMessageMedia works
+
+    const payload = {
+      chat_id: chatId,
+      reply_markup: { inline_keyboard: keyboard }
+    };
+
+    let tgApiUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
+    if (editMsgId) {
+      tgApiUrl = `https://api.telegram.org/bot${botToken}/editMessageMedia`;
+      payload.message_id = editMsgId;
+      payload.media = { type: "photo", media: movieThumb, caption: text, parse_mode: "HTML" };
+    } else {
+      payload.photo = movieThumb;
+      payload.caption = text;
+      payload.parse_mode = "HTML";
+      if (replyToMsgId) payload.reply_to_message_id = replyToMsgId;
+    }
 
     try {
       const res = await fetch(tgApiUrl, {
@@ -515,7 +659,7 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
       const data = await res.json();
 
       if (data.ok) {
-        // Successfully sent message! Exit the loop completely.
+        // Successfully sent/edited message! Exit the loop completely.
         return;
       } else {
         console.warn(`Bot ${currentIndex + 1} failed to send message: ${data.description}. Trying next bot...`);
