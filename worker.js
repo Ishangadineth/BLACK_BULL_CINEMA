@@ -110,7 +110,7 @@ async function handleMessage(msg, env) {
 
   // If a movie is found, process the UI logic and reply
   if (movieData) {
-    await sendMovieReplyWithRetry(bots, botIndex, chatId, msgId, movieData);
+    await sendMovieReplyWithRetry(bots, botIndex, chatId, msgId, movieData, env);
   }
 }
 
@@ -132,6 +132,27 @@ async function handleAdminLogic(msg, env) {
   let state = {};
   const stateStr = await kv.get(`admin_state_${chatId}`);
   if (stateStr) state = JSON.parse(stateStr);
+
+  if (text.startsWith("/seturl ")) {
+    const newUrl = text.split(" ")[1];
+    if (newUrl && newUrl.startsWith("http")) {
+      await kv.put("config_gateway_url", newUrl);
+      return sendMsg(`✅ <b>Gateway URL updated to:</b>\n<code>${newUrl}</code>`);
+    } else {
+      return sendMsg("❌ Invalid URL format. Example: <code>/seturl https://mygateway.com/</code>");
+    }
+  }
+
+  if (text === "/nowurl") {
+    let currentUrl = await kv.get("config_gateway_url");
+    if (!currentUrl) currentUrl = "https://idsmovieplanet.ishangadineth.online/"; // Default
+    return sendMsg(`🔗 <b>Current Gateway URL:</b>\n<code>${currentUrl}</code>`);
+  }
+
+  if (text === "/deleteurl") {
+    await kv.delete("config_gateway_url");
+    return sendMsg("🗑 <b>Gateway URL deleted.</b> System will use the default URL.");
+  }
 
   if (text === "/cancel") {
     await kv.delete(`admin_state_${chatId}`);
@@ -346,48 +367,38 @@ async function handleStartCommand(chatId, payload, env, bots) {
   const fileArray = JSON.parse(fileDataStr);
   const filesToProcess = Array.isArray(fileArray) ? fileArray : [fileArray];
 
-  // Helper functions
-  const getMethod = (type) => type === "photo" ? "sendPhoto" : (type === "audio" ? "sendAudio" : (type === "document" ? "sendDocument" : "sendVideo"));
-  const getField = (type) => type === "photo" ? "photo" : (type === "audio" ? "audio" : (type === "document" ? "document" : "video"));
+  // Send all files using Manager Bot token directly (bots[0])
+  for (const file of filesToProcess) {
+    let method = "sendDocument";
+    let requestPayload = { chat_id: chatId, caption: file.caption || "", parse_mode: "HTML" };
 
-  // Send the file using the retry loop. Since there may be multiple files, we first find a working bot
-  // to avoid retrying 7 bots for every single file.
-  let workingBotToken = null;
-  
-  for (const botToken of bots) {
-    const fileData = filesToProcess[0];
-    const method = getMethod(fileData.type);
-    const field = getField(fileData.type);
-    
-    const tgApiUrl = `https://api.telegram.org/bot${botToken}/${method}`;
-    try {
-      const res = await fetch(tgApiUrl, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, [field]: fileData.id || fileData.file_id, caption: fileData.caption || "" })
-      });
-      const data = await res.json();
-      if (data.ok) {
-        workingBotToken = botToken;
-        break; // First file sent successfully! Loop exits.
-      }
-    } catch (e) {
-      console.error("Failed to send first file with token:", e);
+    if (file.type === "channel_msg" || !isNaN(file.id)) {
+      method = "copyMessage";
+      requestPayload = {
+        chat_id: chatId,
+        from_chat_id: "-1003759058179",
+        message_id: parseInt(file.id),
+        caption: file.caption || "",
+        parse_mode: "HTML"
+      };
+    } else {
+      // Fallback for old file_ids
+      const typeToMethod = {
+        "video": "sendVideo",
+        "document": "sendDocument",
+        "audio": "sendAudio",
+        "photo": "sendPhoto",
+        "file": "sendDocument"
+      };
+      method = typeToMethod[file.type] || "sendDocument";
+      requestPayload[file.type === "file" ? "document" : file.type] = file.id || file.file_id;
     }
-  }
 
-  // If a working bot was found, send the rest of the files in order using that same bot
-  if (workingBotToken && filesToProcess.length > 1) {
-    for (let i = 1; i < filesToProcess.length; i++) {
-      const fileData = filesToProcess[i];
-      const method = getMethod(fileData.type);
-      const field = getField(fileData.type);
-      
-      const tgApiUrl = `https://api.telegram.org/bot${workingBotToken}/${method}`;
-      await fetch(tgApiUrl, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, [field]: fileData.id || fileData.file_id, caption: fileData.caption || "" })
-      });
-    }
+    const tgApiUrl = `https://api.telegram.org/bot${bots[0]}/${method}`;
+    await fetch(tgApiUrl, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestPayload)
+    });
   }
 }
 
@@ -427,13 +438,22 @@ async function searchMovieInKV(query, kv) {
   return null;
 }
 
-async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, movieData) {
+async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, movieData, env) {
   // Format the UI Message Details
   const text = `🎬 <b>Movie Found!</b>\n\n` +
     `📌 <b>Title:</b> ${movieData.title}\n` +
     `📅 <b>Year:</b> ${movieData.year}\n` +
     `⭐ <b>Rating:</b> ${movieData.rating}\n\n` +
     `<i>Select quality to download below:</i>`;
+
+  // Fetch Dynamic Gateway URL
+  let baseUrl = "https://idsmovieplanet.ishangadineth.online";
+  if (env && env.BLACK_BULL_CINEMA) {
+    const customUrl = await env.BLACK_BULL_CINEMA.get("config_gateway_url");
+    if (customUrl) baseUrl = customUrl;
+  }
+  // Ensure no trailing slash for clean building
+  if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
 
   // Try each bot starting from the Round-Robin selected index
   for (let offset = 0; offset < bots.length; offset++) {
@@ -446,8 +466,6 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
       console.warn(`Bot ${currentIndex + 1} seems invalid. Skipping to next...`);
       continue;
     }
-
-    const baseUrl = `https://idsmovieplanet.ishangadineth.online`;
 
     // Dynamically generate buttons based on 'qualities' array in KV
     const keyboard = [];
