@@ -63,17 +63,7 @@ async function handleMessage(msg, env) {
 
     // B) ADMIN UPLOADER LOGIC
     if (!env.ADMIN_ID || chatId.toString() !== env.ADMIN_ID) {
-      if (text.startsWith("/start")) return; // Silently ignore generic /start for non-admins
-      const tgApiUrl = `https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`;
-      await fetch(tgApiUrl, {
-        method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ 
-          chat_id: chatId, 
-          text: `❌ <b>You can't access this!</b>\nYour Telegram ID is: <code>${chatId}</code>\n\n<i>Please add this ID to the ADMIN_ID variable in Cloudflare.</i>`, 
-          parse_mode: "HTML" 
-        })
-      });
-      return;
+      return sendWelcomeMessage(env.BOT_TOKEN_1, chatId, msg.from?.id || chatId, env);
     }
     return handleAdminLogic(msg, env);
   }
@@ -602,7 +592,10 @@ const LANGS = {
     req_sent: "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!",
     req_btn: "😮 මෙතන නෑනේ (Request Movie)",
     force_sub: "❌ <b>ඔයා අපේ Main Channels දෙකටම Join වෙලා නෑ!</b>\n\nපහළ තියෙන Channels දෙකටම Join වෙලා ඇවිත් ආපහු '✅ I have Joined' කියන එක ඔබන්න.",
-    joined_btn: "✅ I have Joined"
+    joined_btn: "✅ I have Joined",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ආයුබෝවන්! සාදරයෙන් පිළිගන්න.\nඔයාට අවශ්‍ය මූවීස් සහ සීරීස් පහසුවෙන් ලබා ගැනීමට අපගේ චැනල් එකේ ඇති ලින්ක් එකක් ක්ලික් කර මෙතැනට පැමිණෙන්න.\n\n🛡️ <b>Safe & Fast Delivery</b>",
+    ch_btn: "📢 Official Channel",
+    gp_btn: "💬 Main Group"
   },
   en: {
     hello: "👋 Hello {name},\n\nCheck if the movie '<b>{query}</b>' you are looking for is here.. 👇\n\n📌 <i>If you are looking for a series, tap the 'Series' button to filter.</i>",
@@ -615,7 +608,10 @@ const LANGS = {
     req_sent: "✅ Your request has been sent to the Admin! We will add it soon.",
     req_btn: "😮 Request Movie",
     force_sub: "❌ <b>You haven't joined our Main Channels!</b>\n\nPlease join the 2 channels below and click '✅ I have Joined'.",
-    joined_btn: "✅ I have Joined"
+    joined_btn: "✅ I have Joined",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 Hello! Welcome.\nTo easily get your desired movies and series, click a link in our channel to come here.\n\n🛡️ <b>Safe & Fast Delivery</b>",
+    ch_btn: "📢 Official Channel",
+    gp_btn: "💬 Main Group"
   },
   hi: {
     hello: "👋 नमस्ते {name},\n\nजांचें कि आप जिस फिल्म '<b>{query}</b>' की तलाश कर रहे हैं वह यहां है या नहीं.. 👇\n\n📌 <i>यदि आप कोई श्रृंखला ढूंढ रहे हैं, तो 'Series' बटन पर टैप करें।</i>",
@@ -628,7 +624,10 @@ const LANGS = {
     req_sent: "✅ आपका अनुरोध एडमिन को भेज दिया गया है! हम इसे जल्द ही जोड़ देंगे।",
     req_btn: "😮 Request Movie",
     force_sub: "❌ <b>आप हमारे मुख्य चैनल में शामिल नहीं हुए हैं!</b>\n\nकृपया नीचे दिए गए 2 चैनलों से जुड़ें और '✅ I have Joined' पर क्लिक करें।",
-    joined_btn: "✅ I have Joined"
+    joined_btn: "✅ I have Joined",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 नमस्ते! स्वागत है।\nअपनी मनपसंद फिल्में और सीरीज आसानी से पाने के लिए हमारे चैनल में दिए गए लिंक पर क्लिक करके यहां आएं।\n\n🛡️ <b>Safe & Fast Delivery</b>",
+    ch_btn: "📢 Official Channel",
+    gp_btn: "💬 Main Group"
   },
   es: {
     hello: "👋 Hola {name},\n\nComprueba si la película '<b>{query}</b>' que buscas está aquí.. 👇\n\n📌 <i>Si buscas una serie, toca el botón 'Series'.</i>",
@@ -641,7 +640,10 @@ const LANGS = {
     req_sent: "✅ ¡Tu solicitud ha sido enviada al Administrador! La agregaremos pronto.",
     req_btn: "😮 Request Movie",
     force_sub: "❌ <b>¡No te has unido a nuestros canales principales!</b>\n\nÚnete a los 2 canales a continuación y haz clic en '✅ I have Joined'.",
-    joined_btn: "✅ I have Joined"
+    joined_btn: "✅ I have Joined",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ¡Hola! Bienvenido.\nPara obtener fácilmente tus películas y series, haz clic en un enlace de nuestro canal para venir aquí.\n\n🛡️ <b>Safe & Fast Delivery</b>",
+    ch_btn: "📢 Official Channel",
+    gp_btn: "💬 Main Group"
   },
   ta: {
     hello: "👋 வணக்கம் {name},\n\nநீங்கள் தேடும் '<b>{query}</b>' திரைப்படம் இங்கே உள்ளதா என்று பார்க்கவும்.. 👇\n\n📌 <i>நீங்கள் ஒரு தொடரை தேடுகிறீர்கள் என்றால், 'Series' பொத்தானை அழுத்தவும்.</i>",
@@ -654,7 +656,10 @@ const LANGS = {
     req_sent: "✅ உங்கள் கோரிக்கை நிர்வாகிக்கு அனுப்பப்பட்டது! விரைவில் சேர்ப்போம்.",
     req_btn: "😮 Request Movie",
     force_sub: "❌ <b>எங்கள் முக்கிய சேனல்களில் நீங்கள் சேரவில்லை!</b>\n\nகீழே உள்ள 2 சேனல்களில் சேர்ந்து '✅ I have Joined' என்பதைக் கிளிக் செய்யவும்.",
-    joined_btn: "✅ I have Joined"
+    joined_btn: "✅ I have Joined",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 வணக்கம்! வரவேற்கிறோம்.\nஉங்களுக்குத் தேவையான திரைப்படங்கள் மற்றும் தொடர்களை எளிதாகப் பெற, எங்கள் சேனலில் உள்ள இணைப்பைக் கிளிக் செய்து இங்கே வரவும்.\n\n🛡️ <b>Safe & Fast Delivery</b>",
+    ch_btn: "📢 Official Channel",
+    gp_btn: "💬 Main Group"
   }
 };
 
@@ -715,6 +720,26 @@ async function sendForceSubMessage(botToken, chatId, userId, payloadStr, env) {
   await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text: T.force_sub, parse_mode: "HTML", reply_markup: kb })
+  });
+}
+
+async function sendWelcomeMessage(botToken, chatId, userId, env) {
+  const langCode = await getUserLang(userId, env);
+  const T = LANGS[langCode] || LANGS.si;
+
+  const chLink = await getChannelLink(botToken, "-1003999803362", env.BLACK_BULL_CINEMA_LANG);
+  const gpLink = await getChannelLink(botToken, "-1003838706115", env.BLACK_BULL_CINEMA_LANG);
+
+  const kb = {
+    inline_keyboard: [
+      [{ text: T.ch_btn, url: chLink }],
+      [{ text: T.gp_btn, url: gpLink }]
+    ]
+  };
+
+  await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text: T.welcome_msg, parse_mode: "HTML", reply_markup: kb })
   });
 }
 
