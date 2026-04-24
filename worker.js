@@ -495,7 +495,8 @@ async function handleCallback(cb, env, ctx) {
         body: JSON.stringify({ callback_query_id: cb.id, text: "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!", show_alert: true })
       });
     }
-  } catch (err) {
+  }
+} catch (err) {
     console.error("Callback Error:", err.message, err.stack);
     await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/answerCallbackQuery`, {
       method: "POST", headers: {"Content-Type": "application/json"},
