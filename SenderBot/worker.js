@@ -80,6 +80,80 @@ export default {
           return new Response("OK");
         }
 
+        // --- UI CALLBACKS IMPORTED FROM MANAGER ---
+        if (data === "lang_menu") {
+          const kb = {
+            inline_keyboard: [
+              [{ text: "🇱🇰 Sinhala (Default)", callback_data: "setlang_si" }],
+              [{ text: "🇬🇧 English", callback_data: "setlang_en" }, { text: "🇮🇳 Hindi", callback_data: "setlang_hi" }],
+              [{ text: "🇪🇸 Spanish", callback_data: "setlang_es" }, { text: "🇮🇳 Tamil", callback_data: "setlang_ta" }]
+            ]
+          };
+          await fetch(`${TG_API}/editMessageCaption`, {
+            method: "POST", headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: "🌐 <b>Select your preferred language:</b>", parse_mode: "HTML", reply_markup: kb })
+          });
+          return new Response("OK");
+        }
+
+        if (data.startsWith("setlang_")) {
+          const langCode = data.split("_")[1];
+          if (env.BLACK_BULL_CINEMA_LANG) {
+            if (langCode === "si") await env.BLACK_BULL_CINEMA_LANG.delete(`lang_${userId}`);
+            else await env.BLACK_BULL_CINEMA_LANG.put(`lang_${userId}`, langCode);
+          }
+          await fetch(`${TG_API}/editMessageText`, {
+            method: "POST", headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: `✅ <b>Language updated successfully!</b>\n\nNow try searching for a movie.`, parse_mode: "HTML" })
+          });
+          return new Response("OK");
+        }
+
+        if (data.startsWith("view_")) {
+          await answerCallback(TG_API, cb.id);
+          const movieId = data.substring(5);
+          const kv = env.BLACK_BULL_CINEMA;
+          let searchKey = null;
+          if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
+          if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
+          if (searchKey) {
+            const existingStr = await kv.get(searchKey);
+            if (existingStr) {
+              const movieData = JSON.parse(existingStr);
+              await sendMovieReplyForSender(TG_API, BOT_TOKEN, chatId, cb.message.reply_to_message?.message_id || msgId, movieData, env, msgId);
+            }
+          }
+          return new Response("OK");
+        }
+
+        if (data.startsWith("filter_")) {
+          await answerCallback(TG_API, cb.id);
+          const kv = env.BLACK_BULL_CINEMA;
+          const parts = data.split("_");
+          const fType = parts[1];
+          const query = parts.slice(2).join("_");
+          const results = await searchMovieInKV(query, kv);
+          if (results && results.length > 0) {
+            const userFirstName = cb.message.chat.first_name || "User";
+            await sendSearchResults(TG_API, BOT_TOKEN, chatId, userId, cb.message.reply_to_message?.message_id || msgId, query, results, fType, env, msgId, userFirstName);
+          }
+          return new Response("OK");
+        }
+
+        if (data.startsWith("req_")) {
+          const query = data.substring(4);
+          if (ADMIN_ID) {
+            const adminMsg = `📢 <b>New Request from User!</b>\n👤 <b>User:</b> <a href="tg://user?id=${userId}">${cb.from.first_name || "User"}</a> (<code>${userId}</code>)\n🔎 <b>Requested:</b> ${query}`;
+            await fetch(`${TG_API}/sendMessage`, { 
+              method: "POST", headers: {"Content-Type": "application/json"}, 
+              body: JSON.stringify({ chat_id: ADMIN_ID, text: adminMsg, parse_mode: "HTML" }) 
+            });
+            await answerCallback(TG_API, cb.id, "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!");
+          }
+          return new Response("OK");
+        }
+
+
         if (userId !== ADMIN_ID || !isPrivate) {
           await answerCallback(TG_API, cb.id, "⚠️ Access Denied! Admin Only (Private).");
           return new Response("OK");
@@ -497,6 +571,121 @@ async function sendWelcomeMessage(api, botToken, chatId, userId, env) {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text: T.welcome_msg, parse_mode: "HTML", reply_markup: kb })
   });
+}
+
+async function searchMovieInKV(query, kv) {
+  if (query.length < 2) return [];
+  if (!kv) return [];
+  const searchKey = query.toLowerCase();
+  const list = await kv.list({ prefix: searchKey });
+  const results = [];
+  for (const keyObj of list.keys) {
+    if (keyObj.name.startsWith("admin_") || keyObj.name.startsWith("config_") || keyObj.name.startsWith("idx_")) continue;
+    const dataString = await kv.get(keyObj.name);
+    if (dataString) {
+      try { results.push(JSON.parse(dataString)); } catch (e) {}
+    }
+  }
+  return results;
+}
+
+async function sendSearchResults(api, botToken, chatId, userId, replyToMsgId, query, results, filterType, env, editMsgId = null, firstName = "User") {
+  const langCode = await getUserLang(userId, env);
+  const T = LANGS[langCode] || LANGS.si;
+
+  let filtered = results;
+  if (filterType === "movies") filtered = results.filter(r => !r.is_series);
+  if (filterType === "series") filtered = results.filter(r => r.is_series);
+
+  const defaultImages = [
+    "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000", 
+    "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000",
+    "https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=1000"
+  ];
+  const randomImg = defaultImages[Math.floor(Math.random() * defaultImages.length)];
+  let text = T.hello ? T.hello.replace("{name}", firstName).replace("{query}", query) : `👋 Hello ${firstName},\n\nSee if '${query}' is available here.. 👇`;
+
+  const keyboard = [];
+  keyboard.push([
+    { text: filterType === "movies" ? `✅ ${T.movies}` : T.movies, callback_data: `filter_movies_${query}` },
+    { text: filterType === "series" ? `✅ ${T.series}` : T.series, callback_data: `filter_series_${query}` }
+  ]);
+  for (const r of filtered) {
+    keyboard.push([{ text: `🎬 ${r.title} (${r.year})`, callback_data: `view_${r.id}` }]);
+  }
+  if (filtered.length === 0) keyboard.push([{ text: T.not_found_cat, callback_data: "none" }]);
+  keyboard.push([{ text: T.not_here, callback_data: `req_${query.substring(0,40)}` }]);
+  keyboard.push([{ text: T.change_lang, callback_data: "lang_menu" }]);
+
+  const payload = { chat_id: chatId, reply_markup: { inline_keyboard: keyboard } };
+  let tgApiUrl = `${api}/sendPhoto`;
+  if (editMsgId) {
+    tgApiUrl = `${api}/editMessageMedia`;
+    payload.message_id = editMsgId;
+    payload.media = { type: "photo", media: randomImg, caption: text, parse_mode: "HTML" };
+  } else {
+    payload.photo = randomImg;
+    payload.caption = text;
+    payload.parse_mode = "HTML";
+    if (replyToMsgId) payload.reply_to_message_id = replyToMsgId;
+  }
+
+  await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+}
+
+async function sendMovieReplyForSender(api, botToken, chatId, replyToMsgId, movieData, env, editMsgId = null) {
+  const text = `🎬 <b>${movieData.is_series ? 'Series' : 'Movie'} Found!</b>\n\n📌 <b>Title:</b> ${movieData.title}\n📅 <b>Year:</b> ${movieData.year}\n⭐ <b>Rating:</b> ${movieData.rating}\n\n<i>Select quality to download below:</i>`;
+
+  let baseUrl = "https://idsmovieplanet.ishangadineth.online";
+  if (env && env.BLACK_BULL_CINEMA) {
+    const customUrl = await env.BLACK_BULL_CINEMA.get("config_gateway_url");
+    if (customUrl) baseUrl = customUrl;
+  }
+  if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
+  const botUser = await (async () => {
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+      const data = await res.json();
+      if (data.ok && data.result) return data.result.username;
+    } catch(e){}
+    return "UnknownBot";
+  })();
+
+  const keyboard = [];
+  if (movieData.qualities && Array.isArray(movieData.qualities)) {
+    for (let i = 0; i < movieData.qualities.length; i += 2) {
+      const row = [];
+      const q1 = movieData.qualities[i];
+      row.push({ text: `📥 ${q1.name}`, url: `${baseUrl}/?id=${q1.q}&bot=${botUser}` });
+      if (i + 1 < movieData.qualities.length) {
+        const q2 = movieData.qualities[i + 1];
+        row.push({ text: `📥 ${q2.name}`, url: `${baseUrl}/?id=${q2.q}&bot=${botUser}` });
+      }
+      keyboard.push(row);
+    }
+  } else {
+    keyboard.push([{ text: "📥 Click Here to Download", url: `${baseUrl}/?bot=${botUser}` }]);
+  }
+
+  const defaultImages = ["https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000", "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000", "https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=1000"];
+  const randomImg = defaultImages[Math.floor(Math.random() * defaultImages.length)];
+  const movieThumb = movieData.thumb || randomImg;
+
+  const payload = { chat_id: chatId, reply_markup: { inline_keyboard: keyboard } };
+  let tgApiUrl = `${api}/sendPhoto`;
+  if (editMsgId) {
+    tgApiUrl = `${api}/editMessageMedia`;
+    payload.message_id = editMsgId;
+    payload.media = { type: "photo", media: movieThumb, caption: text, parse_mode: "HTML" };
+  } else {
+    payload.photo = movieThumb;
+    payload.caption = text;
+    payload.parse_mode = "HTML";
+    if (replyToMsgId) payload.reply_to_message_id = replyToMsgId;
+  }
+
+  await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
 }
 
 
