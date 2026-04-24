@@ -374,7 +374,12 @@ async function handleCallback(cb, env) {
   }
 
   if (data.startsWith("view_")) {
-    const movieId = data.split("_")[1];
+    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/answerCallbackQuery`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_query_id: cb.id })
+    });
+
+    const movieId = data.substring(5);
     
     // Check FILEID KV for the index first, fallback to main KV for backward compatibility
     let searchKey = null;
@@ -395,6 +400,11 @@ async function handleCallback(cb, env) {
   }
 
   if (data.startsWith("filter_")) {
+    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/answerCallbackQuery`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_query_id: cb.id })
+    });
+
     const parts = data.split("_");
     const fType = parts[1]; // movies or series
     const query = parts.slice(2).join("_");
