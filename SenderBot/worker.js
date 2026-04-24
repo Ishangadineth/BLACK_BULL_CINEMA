@@ -141,6 +141,7 @@ export default {
           }
           
           const kv = env.BLACK_BULL_CINEMA;
+          if (!kv) throw new Error("Database KV not bound to Sender Bot!");
           let searchKey = null;
           if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
           if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
@@ -157,6 +158,7 @@ export default {
         if (data.startsWith("search_")) {
           await answerCallback(TG_API, cb.id);
           const kv = env.BLACK_BULL_CINEMA;
+          if (!kv) throw new Error("Database KV not bound to Sender Bot!");
           const query = data.substring(7);
           const results = await searchMovieInKV(query, kv);
           if (results && results.length > 0) {
@@ -169,6 +171,7 @@ export default {
         if (data.startsWith("filter_")) {
           await answerCallback(TG_API, cb.id);
           const kv = env.BLACK_BULL_CINEMA;
+          if (!kv) throw new Error("Database KV not bound to Sender Bot!");
           const parts = data.split("_");
           const fType = parts[1];
           const query = parts.slice(2).join("_");
@@ -717,7 +720,9 @@ async function sendSearchResults(api, botToken, chatId, userId, replyToMsgId, qu
     if (replyToMsgId) payload.reply_to_message_id = replyToMsgId;
   }
 
-  await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  const res = await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.description);
 }
 
 async function sendMovieReplyForSender(api, botToken, chatId, replyToMsgId, movieData, env, editMsgId = null, originalQuery = null) {
@@ -776,7 +781,9 @@ async function sendMovieReplyForSender(api, botToken, chatId, replyToMsgId, movi
     if (replyToMsgId) payload.reply_to_message_id = replyToMsgId;
   }
 
-  await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  const res = await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.description);
 }
 
 

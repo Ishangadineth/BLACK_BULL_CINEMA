@@ -13,7 +13,7 @@ export default {
       const payload = await request.json();
 
       if (payload.callback_query) {
-        ctx.waitUntil(handleCallback(payload.callback_query, env));
+        ctx.waitUntil(handleCallback(payload.callback_query, env, ctx));
       }
       if (payload.message) {
         ctx.waitUntil(handleMessage(payload.message, env));
@@ -299,15 +299,16 @@ async function handleAdminLogic(msg, env) {
 // THUMBNAIL & FINALIZATION LOGIC
 // ══════════════════════════════════════════════
 
-async function handleCallback(cb, env) {
-  const chatId = cb.message.chat.id;
-  const data = cb.data;
-  const msgId = cb.message.message_id;
+async function handleCallback(cb, env, ctx) {
+  try {
+    const chatId = cb.message.chat.id;
+    const data = cb.data;
+    const msgId = cb.message.message_id;
 
-  const kv = env.BLACK_BULL_CINEMA;
-  let state = {};
-  const stateStr = await kv.get(`admin_state_${chatId}`);
-  if (stateStr) state = JSON.parse(stateStr);
+    const kv = env.BLACK_BULL_CINEMA;
+    let state = {};
+    const stateStr = await kv.get(`admin_state_${chatId}`);
+    if (stateStr) state = JSON.parse(stateStr);
 
   const editMsg = async (msgText) => fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/editMessageText`, { 
     method: "POST", headers: {"Content-Type": "application/json"}, 
@@ -494,6 +495,12 @@ async function handleCallback(cb, env) {
         body: JSON.stringify({ callback_query_id: cb.id, text: "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!", show_alert: true })
       });
     }
+  } catch (err) {
+    console.error("Callback Error:", err.message, err.stack);
+    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/answerCallbackQuery`, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ callback_query_id: cb.id, text: `Manager Error: ${err.message}`, show_alert: true })
+    });
   }
 }
 
@@ -888,10 +895,12 @@ async function sendSearchResults(botToken, chatId, userId, replyToMsgId, query, 
     if (replyToMsgId) payload.reply_to_message_id = replyToMsgId;
   }
 
-  await fetch(tgApiUrl, {
+  const res = await fetch(tgApiUrl, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.description);
 }
 
 async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, movieData, env, editMsgId = null, originalQuery = null) {
@@ -974,10 +983,10 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
       const data = await res.json();
 
       if (data.ok) {
-        // Successfully sent/edited message! Exit the loop completely.
-        return;
+        break; // Success! Stop trying other bots
       } else {
-        console.warn(`Bot ${currentIndex + 1} failed to send message: ${data.description}. Trying next bot...`);
+        console.error("Bot failed:", botToken, data.description);
+        throw new Error(data.description); // Throw so it's caught by the callback try/catch
       }
     } catch (e) {
       console.error(`Fetch error for Bot ${currentIndex + 1}:`, e);
