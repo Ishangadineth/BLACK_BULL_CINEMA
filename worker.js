@@ -383,6 +383,16 @@ async function handleCallback(cb, env) {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: "🌐 <b>Select your preferred language:</b>", parse_mode: "HTML", reply_markup: kb })
     });
+
+    const autoDelete = async () => {
+      await new Promise(r => setTimeout(r, 10000));
+      await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/deleteMessage`, {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ chat_id: chatId, message_id: msgId })
+      });
+    };
+    if (typeof ctx !== "undefined" && ctx.waitUntil) ctx.waitUntil(autoDelete());
+
     return;
   }
 
