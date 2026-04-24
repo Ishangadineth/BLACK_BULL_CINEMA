@@ -37,9 +37,9 @@ async function handleMessage(msg, env) {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
 
-  // Ignore non-text messages for standard operations
-  if (!text && (!env.ADMIN_ID || chatId.toString() !== env.ADMIN_ID)) {
-    return; // Silently ignore stickers, photos, videos etc. from normal users
+  // Ignore non-text messages in group chats
+  if (!text && msg.chat.type !== "private") {
+    return; // Silently ignore stickers, photos, videos etc. from normal users in groups
   }
 
   // Array of bots
