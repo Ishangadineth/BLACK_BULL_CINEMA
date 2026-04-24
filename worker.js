@@ -37,6 +37,11 @@ async function handleMessage(msg, env) {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
 
+  // Ignore non-text messages for standard operations
+  if (!text && (!env.ADMIN_ID || chatId.toString() !== env.ADMIN_ID)) {
+    return; // Silently ignore stickers, photos, videos etc. from normal users
+  }
+
   // Array of bots
   const bots = [
     env.BOT_TOKEN_1, env.BOT_TOKEN_2, env.BOT_TOKEN_3, env.BOT_TOKEN_4,
@@ -75,6 +80,20 @@ async function handleMessage(msg, env) {
 
   // 2. GROUP MANAGER LOGIC
   
+  if (text.startsWith("/lang")) {
+    const kb = {
+      inline_keyboard: [
+        [{ text: "🇱🇰 Sinhala (Default)", callback_data: "setlang_si" }],
+        [{ text: "🇬🇧 English", callback_data: "setlang_en" }, { text: "🇮🇳 Hindi", callback_data: "setlang_hi" }],
+        [{ text: "🇪🇸 Spanish", callback_data: "setlang_es" }, { text: "🇮🇳 Tamil", callback_data: "setlang_ta" }]
+      ]
+    };
+    return fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ chat_id: chatId, text: "🌐 <b>Select your preferred language:</b>", parse_mode: "HTML", reply_markup: kb })
+    });
+  }
+
   if (text === "/list") {
     const list = await env.BLACK_BULL_CINEMA.list();
     const movieKeys = list.keys.filter(k => !k.name.startsWith("admin_") && !k.name.startsWith("site_") && !k.name.startsWith("verified_") && !k.name.startsWith("idx_"));
@@ -110,14 +129,16 @@ async function handleMessage(msg, env) {
 
   // If a movie is found, process the UI logic and reply
   if (results && results.length > 0) {
-    const userFirstName = msg.chat.first_name || "User";
-    await sendSearchResults(bots[0], chatId, msgId, text, results, "all", env, null, userFirstName);
+    const userFirstName = msg.from?.first_name || msg.chat?.first_name || "User";
+    await sendSearchResults(selectedToken, chatId, msg.from?.id || chatId, msgId, text, results, "all", env, null, userFirstName);
   } else {
-    // Optional: send a "not found" message
-    const kb = { inline_keyboard: [[{ text: "😮 මෙතන නෑනේ (Request Movie)", callback_data: `req_${text.substring(0, 40)}` }]] };
-    await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
+    const langCode = await getUserLang(msg.from?.id || chatId, env);
+    const T = LANGS[langCode] || LANGS.si;
+    const notFoundText = T.not_found.replace("{query}", text);
+    const kb = { inline_keyboard: [[{ text: T.req_btn, callback_data: `req_${text.substring(0, 40)}` }]] };
+    await fetch(`https://api.telegram.org/bot${selectedToken}/sendMessage`, {
       method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ chat_id: chatId, text: `❌ ඔයා හොයන '<b>${text}</b>' අපේ පද්ධතියේ නෑ.\n\nපහළ බට්න් එක ඔබලා Admin ට Request එකක් දාන්න. 👇`, parse_mode: "HTML", reply_markup: kb })
+      body: JSON.stringify({ chat_id: chatId, text: notFoundText, parse_mode: "HTML", reply_markup: kb })
     });
   }
 }
@@ -331,6 +352,37 @@ async function handleCallback(cb, env) {
     if (env[`BOT_TOKEN_${i}`]) bots.push(env[`BOT_TOKEN_${i}`]);
   }
 
+  if (data.startsWith("setlang_")) {
+    const langCode = data.split("_")[1];
+    if (env.BLACK_BULL_CINEMA_LANG) {
+      if (langCode === "si") {
+        await env.BLACK_BULL_CINEMA_LANG.delete(`lang_${cb.from.id}`);
+      } else {
+        await env.BLACK_BULL_CINEMA_LANG.put(`lang_${cb.from.id}`, langCode);
+      }
+    }
+    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/editMessageText`, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: `✅ <b>Language updated successfully!</b>\n\nNow try searching for a movie.`, parse_mode: "HTML" })
+    });
+    return;
+  }
+
+  if (data === "lang_menu") {
+    const kb = {
+      inline_keyboard: [
+        [{ text: "🇱🇰 Sinhala (Default)", callback_data: "setlang_si" }],
+        [{ text: "🇬🇧 English", callback_data: "setlang_en" }, { text: "🇮🇳 Hindi", callback_data: "setlang_hi" }],
+        [{ text: "🇪🇸 Spanish", callback_data: "setlang_es" }, { text: "🇮🇳 Tamil", callback_data: "setlang_ta" }]
+      ]
+    };
+    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/editMessageCaption`, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: "🌐 <b>Select your preferred language:</b>", parse_mode: "HTML", reply_markup: kb })
+    });
+    return;
+  }
+
   if (data.startsWith("view_")) {
     const movieId = data.split("_")[1];
     
@@ -361,6 +413,28 @@ async function handleCallback(cb, env) {
       const userFirstName = cb.message.chat.first_name || "User";
       await sendSearchResults(bots[0], chatId, cb.message.reply_to_message?.message_id || msgId, query, results, fType, env, msgId, userFirstName);
     }
+  }
+
+  if (data.startsWith("check_sub_")) {
+    const payload = data.substring(10);
+    const isSubbed = await checkForceSub(env.BOT_TOKEN_1, cb.from.id);
+    
+    if (isSubbed) {
+      // Delete the force join message
+      await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/deleteMessage`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, message_id: cb.message.message_id })
+      });
+      // Send the files via Deep Link logic
+      await handleStartCommand(chatId, payload, env, bots);
+    } else {
+      // Answer callback with alert
+      await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/answerCallbackQuery`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ callback_query_id: cb.id, text: "❌ You must join both channels first!", show_alert: true })
+      });
+    }
+    return;
   }
 
   if (data.startsWith("req_")) {
@@ -454,6 +528,11 @@ async function finalizeSave(chatId, state, env, thumbId) {
 // ══════════════════════════════════════════════
 
 async function handleStartCommand(chatId, payload, env, bots) {
+  const isSubbed = await checkForceSub(bots[0], chatId);
+  if (!isSubbed) {
+    return sendForceSubMessage(bots[0], chatId, chatId, payload, env);
+  }
+
   if (!env.BLACK_BULL_CINEMA_FILEID) {
     const tgApiUrl = `https://api.telegram.org/bot${bots[0]}/sendMessage`;
     await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "❌ <b>Database Error:</b> File database not connected.", parse_mode: "HTML" }) });
@@ -511,6 +590,134 @@ async function handleStartCommand(chatId, payload, env, bots) {
 // SEARCH & UI LOGIC
 // ══════════════════════════════════════════════
 
+const LANGS = {
+  si: {
+    hello: "👋 හෙලෝ {name},\n\nබලන්න ඔයා හොයන '<b>{query}</b>' මෙතන තියනවද කියලා.. 👇\n\n📌 <i>ඔයා හොයන්නේ සීරීස් එකක් නම් 'Series' කියන බට්න් එක ඔබලා ඔයාට ඕනි සීරීස් එක තෝරන්න.</i>",
+    movies: "🎬 Movies",
+    series: "📺 Series",
+    not_found: "❌ ඔයා හොයන '<b>{query}</b>' අපේ පද්ධතියේ නෑ.\n\nපහළ බට්න් එක ඔබලා Admin ට Request එකක් දාන්න. 👇",
+    not_found_cat: "🚫 No results found for this category.",
+    not_here: "😮 මෙතන නෑනේ",
+    change_lang: "🌐 Change Language",
+    req_sent: "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!",
+    req_btn: "😮 මෙතන නෑනේ (Request Movie)",
+    force_sub: "❌ <b>ඔයා අපේ Main Channels දෙකටම Join වෙලා නෑ!</b>\n\nපහළ තියෙන Channels දෙකටම Join වෙලා ඇවිත් ආපහු '✅ I have Joined' කියන එක ඔබන්න.",
+    joined_btn: "✅ I have Joined"
+  },
+  en: {
+    hello: "👋 Hello {name},\n\nCheck if the movie '<b>{query}</b>' you are looking for is here.. 👇\n\n📌 <i>If you are looking for a series, tap the 'Series' button to filter.</i>",
+    movies: "🎬 Movies",
+    series: "📺 Series",
+    not_found: "❌ The movie '<b>{query}</b>' is not in our system.\n\nTap the button below to request it from the Admin. 👇",
+    not_found_cat: "🚫 No results found for this category.",
+    not_here: "😮 Not Here",
+    change_lang: "🌐 Change Language",
+    req_sent: "✅ Your request has been sent to the Admin! We will add it soon.",
+    req_btn: "😮 Request Movie",
+    force_sub: "❌ <b>You haven't joined our Main Channels!</b>\n\nPlease join the 2 channels below and click '✅ I have Joined'.",
+    joined_btn: "✅ I have Joined"
+  },
+  hi: {
+    hello: "👋 नमस्ते {name},\n\nजांचें कि आप जिस फिल्म '<b>{query}</b>' की तलाश कर रहे हैं वह यहां है या नहीं.. 👇\n\n📌 <i>यदि आप कोई श्रृंखला ढूंढ रहे हैं, तो 'Series' बटन पर टैप करें।</i>",
+    movies: "🎬 Movies",
+    series: "📺 Series",
+    not_found: "❌ फिल्म '<b>{query}</b>' हमारे सिस्टम में नहीं है।\n\nएडमिन से अनुरोध करने के लिए नीचे दिए गए बटन पर टैप करें। 👇",
+    not_found_cat: "🚫 इस श्रेणी के लिए कोई परिणाम नहीं मिला।",
+    not_here: "😮 यहाँ नहीं है",
+    change_lang: "🌐 Change Language",
+    req_sent: "✅ आपका अनुरोध एडमिन को भेज दिया गया है! हम इसे जल्द ही जोड़ देंगे।",
+    req_btn: "😮 Request Movie",
+    force_sub: "❌ <b>आप हमारे मुख्य चैनल में शामिल नहीं हुए हैं!</b>\n\nकृपया नीचे दिए गए 2 चैनलों से जुड़ें और '✅ I have Joined' पर क्लिक करें।",
+    joined_btn: "✅ I have Joined"
+  },
+  es: {
+    hello: "👋 Hola {name},\n\nComprueba si la película '<b>{query}</b>' que buscas está aquí.. 👇\n\n📌 <i>Si buscas una serie, toca el botón 'Series'.</i>",
+    movies: "🎬 Movies",
+    series: "📺 Series",
+    not_found: "❌ La película '<b>{query}</b>' no está en nuestro sistema.\n\nToca el botón de abajo para pedirla al administrador. 👇",
+    not_found_cat: "🚫 No se encontraron resultados para esta categoría.",
+    not_here: "😮 No está aquí",
+    change_lang: "🌐 Change Language",
+    req_sent: "✅ ¡Tu solicitud ha sido enviada al Administrador! La agregaremos pronto.",
+    req_btn: "😮 Request Movie",
+    force_sub: "❌ <b>¡No te has unido a nuestros canales principales!</b>\n\nÚnete a los 2 canales a continuación y haz clic en '✅ I have Joined'.",
+    joined_btn: "✅ I have Joined"
+  },
+  ta: {
+    hello: "👋 வணக்கம் {name},\n\nநீங்கள் தேடும் '<b>{query}</b>' திரைப்படம் இங்கே உள்ளதா என்று பார்க்கவும்.. 👇\n\n📌 <i>நீங்கள் ஒரு தொடரை தேடுகிறீர்கள் என்றால், 'Series' பொத்தானை அழுத்தவும்.</i>",
+    movies: "🎬 Movies",
+    series: "📺 Series",
+    not_found: "❌ '<b>{query}</b>' திரைப்படம் எங்கள் கணினியில் இல்லை.\n\nநிர்வாகியிடம் கோர கீழேயுள்ள பொத்தானை அழுத்தவும். 👇",
+    not_found_cat: "🚫 இந்த வகைக்கு முடிவுகள் எதுவும் கிடைக்கவில்லை.",
+    not_here: "😮 இங்கே இல்லை",
+    change_lang: "🌐 Change Language",
+    req_sent: "✅ உங்கள் கோரிக்கை நிர்வாகிக்கு அனுப்பப்பட்டது! விரைவில் சேர்ப்போம்.",
+    req_btn: "😮 Request Movie",
+    force_sub: "❌ <b>எங்கள் முக்கிய சேனல்களில் நீங்கள் சேரவில்லை!</b>\n\nகீழே உள்ள 2 சேனல்களில் சேர்ந்து '✅ I have Joined' என்பதைக் கிளிக் செய்யவும்.",
+    joined_btn: "✅ I have Joined"
+  }
+};
+
+async function getUserLang(userId, env) {
+  if (env.BLACK_BULL_CINEMA_LANG) {
+    const lang = await env.BLACK_BULL_CINEMA_LANG.get(`lang_${userId}`);
+    if (lang && LANGS[lang]) return lang;
+  }
+  return "si"; // Default Sinhala
+}
+
+async function getChannelLink(botToken, channelId, kv) {
+  let link = null;
+  if (kv) link = await kv.get(`invite_${channelId}`);
+  if (link) return link;
+  
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/exportChatInviteLink?chat_id=${channelId}`);
+    const data = await res.json();
+    if (data.ok && data.result) {
+      if (kv) await kv.put(`invite_${channelId}`, data.result);
+      return data.result;
+    }
+  } catch(e) {}
+  return "https://t.me/";
+}
+
+async function checkForceSub(botToken, userId) {
+  const channels = ["-1003947907936", "-1003999803362"];
+  for (const channelId of channels) {
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${botToken}/getChatMember?chat_id=${channelId}&user_id=${userId}`);
+      const data = await res.json();
+      if (!data.ok || ["left", "kicked"].includes(data.result.status)) {
+        return false;
+      }
+    } catch (e) {
+      return false; // Force join if error
+    }
+  }
+  return true;
+}
+
+async function sendForceSubMessage(botToken, chatId, userId, payloadStr, env) {
+  const langCode = await getUserLang(userId, env);
+  const T = LANGS[langCode] || LANGS.si;
+
+  const link1 = await getChannelLink(botToken, "-1003947907936", env.BLACK_BULL_CINEMA_LANG);
+  const link2 = await getChannelLink(botToken, "-1003999803362", env.BLACK_BULL_CINEMA_LANG);
+
+  const kb = {
+    inline_keyboard: [
+      [{ text: "📢 Channel 01", url: link1 }, { text: "📢 Channel 02", url: link2 }],
+      [{ text: T.joined_btn, callback_data: `check_sub_${payloadStr}` }]
+    ]
+  };
+
+  await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text: T.force_sub, parse_mode: "HTML", reply_markup: kb })
+  });
+}
+
 async function getBotUsername(token) {
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
@@ -544,7 +751,10 @@ async function searchMovieInKV(query, kv) {
   return results;
 }
 
-async function sendSearchResults(botToken, chatId, replyToMsgId, query, results, filterType, env, editMsgId = null, firstName = "User") {
+async function sendSearchResults(botToken, chatId, userId, replyToMsgId, query, results, filterType, env, editMsgId = null, firstName = "User") {
+  const langCode = await getUserLang(userId, env);
+  const T = LANGS[langCode] || LANGS.si;
+
   // Filter Logic
   let filtered = results;
   if (filterType === "movies") filtered = results.filter(r => !r.is_series);
@@ -558,14 +768,14 @@ async function sendSearchResults(botToken, chatId, replyToMsgId, query, results,
   ];
   const randomImg = defaultImages[Math.floor(Math.random() * defaultImages.length)];
 
-  const text = `👋 හෙලෝ <b>${firstName}</b>,\n\nබලන්න ඔයා හොයන '<b>${query}</b>' මෙතන තියනවද කියලා.. 👇\n\n📌 <i>ඔයා හොයන්නේ සීරීස් එකක් නම් 'Series' කියන බට්න් එක ඔබලා ඔයාට ඕනි සීරීස් එක තෝරන්න.</i>`;
+  let text = T.hello.replace("{name}", firstName).replace("{query}", query);
 
   const keyboard = [];
   
   // Top Filter Buttons
   keyboard.push([
-    { text: filterType === "movies" ? "✅ 🎬 Movies" : "🎬 Movies", callback_data: `filter_movies_${query}` },
-    { text: filterType === "series" ? "✅ 📺 Series" : "📺 Series", callback_data: `filter_series_${query}` }
+    { text: filterType === "movies" ? `✅ ${T.movies}` : T.movies, callback_data: `filter_movies_${query}` },
+    { text: filterType === "series" ? `✅ ${T.series}` : T.series, callback_data: `filter_series_${query}` }
   ]);
 
   // List Buttons
@@ -574,11 +784,13 @@ async function sendSearchResults(botToken, chatId, replyToMsgId, query, results,
   }
 
   if (filtered.length === 0) {
-    keyboard.push([{ text: "🚫 No results found for this category.", callback_data: "none" }]);
+    keyboard.push([{ text: T.not_found_cat, callback_data: "none" }]);
   }
 
   // Not Here Button
-  keyboard.push([{ text: "😮 මෙතන නෑනේ", callback_data: `req_${query.substring(0,40)}` }]);
+  keyboard.push([{ text: T.not_here, callback_data: `req_${query.substring(0,40)}` }]);
+  // Change Language Button
+  keyboard.push([{ text: T.change_lang, callback_data: "lang_menu" }]);
 
   const payload = {
     chat_id: chatId,
