@@ -351,9 +351,22 @@ async function handleCallback(cb, env) {
         await env.BLACK_BULL_CINEMA_LANG.put(`lang_${cb.from.id}`, langCode);
       }
     }
-    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/editMessageText`, {
+    
+    let alertMsg = "✅ Language Updated!";
+    if (langCode === "si") alertMsg = "✅ ඔබේ භාශාව සිංහල ලෙස වෙනස් විය!";
+    else if (langCode === "en") alertMsg = "✅ Your language was changed to English!";
+    else if (langCode === "hi") alertMsg = "✅ आपकी भाषा बदल दी गई है!";
+    else if (langCode === "es") alertMsg = "✅ ¡Tu idioma ha sido cambiado!";
+    else if (langCode === "ta") alertMsg = "✅ உங்கள் மொழி மாற்றப்பட்டுள்ளது!";
+
+    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/answerCallbackQuery`, {
       method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: `✅ <b>Language updated successfully!</b>\n\nNow try searching for a movie.`, parse_mode: "HTML" })
+      body: JSON.stringify({ callback_query_id: cb.id, text: alertMsg, show_alert: true })
+    });
+    
+    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/deleteMessage`, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ chat_id: chatId, message_id: msgId })
     });
     return;
   }
@@ -379,7 +392,14 @@ async function handleCallback(cb, env) {
       body: JSON.stringify({ callback_query_id: cb.id })
     });
 
-    const movieId = data.substring(5);
+    const payloadStr = data.substring(5);
+    const splitIndex = payloadStr.indexOf("|");
+    let movieId = payloadStr;
+    let originalQuery = "";
+    if (splitIndex !== -1) {
+      movieId = payloadStr.substring(0, splitIndex);
+      originalQuery = payloadStr.substring(splitIndex + 1);
+    }
     
     // Check FILEID KV for the index first, fallback to main KV for backward compatibility
     let searchKey = null;
@@ -394,8 +414,21 @@ async function handleCallback(cb, env) {
       const existingStr = await kv.get(searchKey);
       if (existingStr) {
         const movieData = JSON.parse(existingStr);
-        await sendMovieReplyWithRetry(bots, 0, chatId, cb.message.reply_to_message?.message_id || msgId, movieData, env, msgId);
+        await sendMovieReplyWithRetry(bots, 0, chatId, cb.message.reply_to_message?.message_id || msgId, movieData, env, msgId, originalQuery);
       }
+    }
+  }
+
+  if (data.startsWith("search_")) {
+    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/answerCallbackQuery`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_query_id: cb.id })
+    });
+    const query = data.substring(7);
+    const results = await searchMovieInKV(query, kv);
+    if (results && results.length > 0) {
+      const userFirstName = cb.message.chat.first_name || "User";
+      await sendSearchResults(bots[0], chatId, cb.message.reply_to_message?.message_id || msgId, query, results, "all", env, msgId, userFirstName);
     }
   }
 
@@ -717,8 +750,8 @@ async function sendForceSubMessage(botToken, chatId, userId, payloadStr, env) {
   const langCode = await getUserLang(userId, env);
   const T = LANGS[langCode] || LANGS.si;
 
-  const link1 = await getChannelLink(botToken, "-1003947907936", env.BLACK_BULL_CINEMA_LANG);
-  const link2 = await getChannelLink(botToken, "-1003999803362", env.BLACK_BULL_CINEMA_LANG);
+  const link1 = "https://t.me/BLACKBULLCINEMAUPDATES";
+  const link2 = "https://t.me/BLACKBULLCINEMA";
 
   const kb = {
     inline_keyboard: [
@@ -815,7 +848,8 @@ async function sendSearchResults(botToken, chatId, userId, replyToMsgId, query, 
 
   // List Buttons
   for (const r of filtered) {
-    keyboard.push([{ text: `🎬 ${r.title} (${r.year})`, callback_data: `view_${r.id}` }]);
+    const safeQuery = query.substring(0, 30);
+    keyboard.push([{ text: `🎬 ${r.title} (${r.year})`, callback_data: `view_${r.id}|${safeQuery}` }]);
   }
 
   if (filtered.length === 0) {
@@ -850,7 +884,7 @@ async function sendSearchResults(botToken, chatId, userId, replyToMsgId, query, 
   });
 }
 
-async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, movieData, env, editMsgId = null) {
+async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, movieData, env, editMsgId = null, originalQuery = null) {
   // Format the UI Message Details
   const text = `🎬 <b>${movieData.is_series ? 'Series' : 'Movie'} Found!</b>\n\n` +
     `📌 <b>Title:</b> ${movieData.title}\n` +
@@ -889,8 +923,12 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
         keyboard.push(row);
       }
     } else {
-      keyboard.push([{ text: "📥 Click Here to Download", url: `${baseUrl}/?bot=${botUser}` }]);
-    }
+    keyboard.push([{ text: "📥 Click Here to Download", url: `${baseUrl}/?bot=${botUser}` }]);
+  }
+
+  if (originalQuery) {
+    keyboard.push([{ text: "⬅️ Back to Search", callback_data: `search_${originalQuery}` }]);
+  }
 
     const defaultImages = [
       "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000", 

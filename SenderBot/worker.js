@@ -102,16 +102,37 @@ export default {
             if (langCode === "si") await env.BLACK_BULL_CINEMA_LANG.delete(`lang_${userId}`);
             else await env.BLACK_BULL_CINEMA_LANG.put(`lang_${userId}`, langCode);
           }
-          await fetch(`${TG_API}/editMessageText`, {
+          
+          let alertMsg = "✅ Language Updated!";
+          if (langCode === "si") alertMsg = "✅ ඔබේ භාශාව සිංහල ලෙස වෙනස් විය!";
+          else if (langCode === "en") alertMsg = "✅ Your language was changed to English!";
+          else if (langCode === "hi") alertMsg = "✅ आपकी भाषा बदल दी गई है!";
+          else if (langCode === "es") alertMsg = "✅ ¡Tu idioma ha sido cambiado!";
+          else if (langCode === "ta") alertMsg = "✅ உங்கள் மொழி மாற்றப்பட்டுள்ளது!";
+
+          await answerCallback(TG_API, cb.id, alertMsg); // answerCallback doesn't set show_alert natively but we can override or just let it show brief toast. Wait, answerCallback implementation:
+          // Let's call fetch directly for show_alert: true
+          await fetch(`${TG_API}/answerCallbackQuery`, {
             method: "POST", headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: `✅ <b>Language updated successfully!</b>\n\nNow try searching for a movie.`, parse_mode: "HTML" })
+            body: JSON.stringify({ callback_query_id: cb.id, text: alertMsg, show_alert: true })
           });
+          
+          await deleteMessage(TG_API, chatId, msgId);
           return new Response("OK");
         }
 
         if (data.startsWith("view_")) {
           await answerCallback(TG_API, cb.id);
-          const movieId = data.substring(5);
+          
+          const payloadStr = data.substring(5);
+          const splitIndex = payloadStr.indexOf("|");
+          let movieId = payloadStr;
+          let originalQuery = "";
+          if (splitIndex !== -1) {
+            movieId = payloadStr.substring(0, splitIndex);
+            originalQuery = payloadStr.substring(splitIndex + 1);
+          }
+          
           const kv = env.BLACK_BULL_CINEMA;
           let searchKey = null;
           if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
@@ -120,8 +141,20 @@ export default {
             const existingStr = await kv.get(searchKey);
             if (existingStr) {
               const movieData = JSON.parse(existingStr);
-              await sendMovieReplyForSender(TG_API, BOT_TOKEN, chatId, cb.message.reply_to_message?.message_id || msgId, movieData, env, msgId);
+              await sendMovieReplyForSender(TG_API, BOT_TOKEN, chatId, cb.message.reply_to_message?.message_id || msgId, movieData, env, msgId, originalQuery);
             }
+          }
+          return new Response("OK");
+        }
+
+        if (data.startsWith("search_")) {
+          await answerCallback(TG_API, cb.id);
+          const kv = env.BLACK_BULL_CINEMA;
+          const query = data.substring(7);
+          const results = await searchMovieInKV(query, kv);
+          if (results && results.length > 0) {
+            const userFirstName = cb.message.chat.first_name || "User";
+            await sendSearchResults(TG_API, BOT_TOKEN, chatId, userId, cb.message.reply_to_message?.message_id || msgId, query, results, "all", env, msgId, userFirstName);
           }
           return new Response("OK");
         }
@@ -537,8 +570,8 @@ async function sendForceSubMessage(api, botToken, chatId, userId, payloadStr, en
   const langCode = await getUserLang(userId, env);
   const T = LANGS[langCode] || LANGS.si;
 
-  const link1 = await getChannelLink(botToken, "-1003947907936", env.BLACK_BULL_CINEMA_LANG);
-  const link2 = await getChannelLink(botToken, "-1003999803362", env.BLACK_BULL_CINEMA_LANG);
+  const link1 = "https://t.me/BLACKBULLCINEMAUPDATES";
+  const link2 = "https://t.me/BLACKBULLCINEMA";
 
   const kb = {
     inline_keyboard: [
@@ -610,8 +643,10 @@ async function sendSearchResults(api, botToken, chatId, userId, replyToMsgId, qu
     { text: filterType === "movies" ? `✅ ${T.movies}` : T.movies, callback_data: `filter_movies_${query}` },
     { text: filterType === "series" ? `✅ ${T.series}` : T.series, callback_data: `filter_series_${query}` }
   ]);
+  // List Buttons
   for (const r of filtered) {
-    keyboard.push([{ text: `🎬 ${r.title} (${r.year})`, callback_data: `view_${r.id}` }]);
+    const safeQuery = query.substring(0, 30);
+    keyboard.push([{ text: `🎬 ${r.title} (${r.year})`, callback_data: `view_${r.id}|${safeQuery}` }]);
   }
   if (filtered.length === 0) keyboard.push([{ text: T.not_found_cat, callback_data: "none" }]);
   keyboard.push([{ text: T.not_here, callback_data: `req_${query.substring(0,40)}` }]);
@@ -633,7 +668,7 @@ async function sendSearchResults(api, botToken, chatId, userId, replyToMsgId, qu
   await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
 }
 
-async function sendMovieReplyForSender(api, botToken, chatId, replyToMsgId, movieData, env, editMsgId = null) {
+async function sendMovieReplyForSender(api, botToken, chatId, replyToMsgId, movieData, env, editMsgId = null, originalQuery = null) {
   const text = `🎬 <b>${movieData.is_series ? 'Series' : 'Movie'} Found!</b>\n\n📌 <b>Title:</b> ${movieData.title}\n📅 <b>Year:</b> ${movieData.year}\n⭐ <b>Rating:</b> ${movieData.rating}\n\n<i>Select quality to download below:</i>`;
 
   let baseUrl = "https://idsmovieplanet.ishangadineth.online";
@@ -666,6 +701,10 @@ async function sendMovieReplyForSender(api, botToken, chatId, replyToMsgId, movi
     }
   } else {
     keyboard.push([{ text: "📥 Click Here to Download", url: `${baseUrl}/?bot=${botUser}` }]);
+  }
+
+  if (originalQuery) {
+    keyboard.push([{ text: "⬅️ Back to Search", callback_data: `search_${originalQuery}` }]);
   }
 
   const defaultImages = ["https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000", "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000", "https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=1000"];
