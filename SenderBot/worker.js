@@ -1,6 +1,7 @@
 /**
  * Cloudflare Worker - SENDER BOT + UPLOADER COMBINED
- * v 0.0.1 - Hybrid Black Bull Sender & Queue Worker
+ * v 0.0.26 - Hybrid Black Bull Sender & Queue Worker
+ * manual edit
  */
 
 export default {
@@ -117,8 +118,6 @@ export default {
           else if (langCode === "es") alertMsg = "✅ ¡Tu idioma ha sido cambiado!";
           else if (langCode === "ta") alertMsg = "✅ உங்கள் மொழி மாற்றப்பட்டுள்ளது!";
 
-          await answerCallback(TG_API, cb.id, alertMsg); // answerCallback doesn't set show_alert natively but we can override or just let it show brief toast. Wait, answerCallback implementation:
-          // Let's call fetch directly for show_alert: true
           await fetch(`${TG_API}/answerCallbackQuery`, {
             method: "POST", headers: {"Content-Type": "application/json"},
             body: JSON.stringify({ callback_query_id: cb.id, text: alertMsg, show_alert: true })
@@ -196,7 +195,6 @@ export default {
           return new Response("OK");
         }
 
-
         if (userId !== ADMIN_ID || !isPrivate) {
           await answerCallback(TG_API, cb.id, "⚠️ Access Denied! Admin Only (Private).");
           return new Response("OK");
@@ -254,7 +252,7 @@ export default {
             url: state.url,
             chat_id: chatId.toString(),
             target_file_id: null,
-            new_name: state.newName || null,
+            new_name: state.newName || state.origName || null,
             thumb_file_id: null,
             bot_token: BOT_TOKEN
           }, chatId, request.url.split("?")[0], TG_API, GITHUB_REPO, GITHUB_TOKEN, Q_RUNNING, Q_TASKS);
@@ -283,8 +281,8 @@ export default {
             chat_id: chatId.toString(),
             target_file_id: state.fileId,
             source_msg_id: state.sourceMsgId || null,
-            new_name: state.newName || null,
-            thumb_file_id: thumbId, // Real Telegram File ID
+            new_name: state.newName || state.origName || null, // FIX APPLIED HERE
+            thumb_file_id: thumbId, 
             bot_token: BOT_TOKEN
           }, chatId, request.url.split("?")[0], TG_API, GITHUB_REPO, GITHUB_TOKEN, Q_RUNNING, Q_TASKS);
         }
@@ -340,10 +338,8 @@ export default {
           await deleteMessage(TG_API, chatId, msg.message_id);
           if (state.lastBotMsg) await deleteMessage(TG_API, chatId, state.lastBotMsg);
 
-          // Save Telegram File ID directly to KV for instant access!
           await DB.put(THUMB_KEY, fileId);
 
-          // Upload to GitHub as backup
           if (GITHUB_REPO && GITHUB_TOKEN) {
             try {
               const fInfo = await (await fetch(`${TG_API}/getFile?file_id=${fileId}`)).json();
@@ -395,7 +391,6 @@ export default {
         if (text.startsWith("/start")) {
           const payloadCmd = text.split(" ")[1];
           if (payloadCmd) {
-            // === BLACK BULL CINEMA SENDER KV LOGIC ===
             
             // FORCE SUB CHECK
             const isSubbed = await checkForceSub(BOT_TOKEN, userId);
@@ -464,14 +459,27 @@ export default {
         // ── File / Link handler ──
         else if (isAdmin && isPrivate) {
           let fileId = null;
-          if (msg.video) fileId = msg.video.file_id;
-          else if (msg.document) fileId = msg.document.file_id;
-          else if (msg.photo && !combined.includes("/setthumb")) fileId = msg.photo[msg.photo.length - 1].file_id;
+          let origName = null; // FIX APPLIED HERE
+
+          if (msg.video) {
+            fileId = msg.video.file_id;
+            origName = msg.video.file_name; // Extracting the original name
+          }
+          else if (msg.document) {
+            fileId = msg.document.file_id;
+            origName = msg.document.file_name; // Extracting the original name
+          }
+          else if (msg.photo && !combined.includes("/setthumb")) {
+            fileId = msg.photo[msg.photo.length - 1].file_id;
+          }
 
           const urlMatch = combined.match(/https?:\/\/[^\s]+/);
           const dlUrl = urlMatch ? urlMatch[0] : null;
 
           if (fileId || dlUrl) {
+            if (origName) {
+              origName = origName.replace(/\.[^/.]+$/, ""); // Remove extension logic
+            }
             const isLink = !!(dlUrl && !fileId);
             const res = await fetch(`${TG_API}/sendMessage`, {
               method: "POST", headers: { "Content-Type": "application/json" },
@@ -486,7 +494,7 @@ export default {
                 }
               })
             });
-            await DB.put(STATE_KEY(chatId), JSON.stringify({ fileId, sourceMsgId: msg.message_id, url: dlUrl, lastBotMsg: (await res.json()).result?.message_id, newName: null, waiting: null }));
+            await DB.put(STATE_KEY(chatId), JSON.stringify({ fileId, origName, sourceMsgId: msg.message_id, url: dlUrl, lastBotMsg: (await res.json()).result?.message_id, newName: null, waiting: null }));
           }
         } else if (isPrivate && !isAdmin) {
           // If a non-admin sends anything else (e.g. sticker, text) in private chat

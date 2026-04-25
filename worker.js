@@ -1,12 +1,14 @@
 /**
- * v 0.0.1 - BLACK BULL Cinema Manager Bot
+ * v 0.0.26 - BLACK BULL Cinema Manager Bot
  * High-Performance Telegram Group Manager & Movie Search Bot
  * using Cloudflare Workers
+ * manual edit
  */
+
+const botUsernamesCache = {}; // Global Cache for Performance
 
 export default {
   async fetch(request, env, ctx) {
-    // Only accept POST requests from Telegram Webhooks
     if (request.method !== "POST") return new Response("Black Bull Cinema Manager Active ✅");
 
     try {
@@ -19,7 +21,6 @@ export default {
         ctx.waitUntil(handleMessage(payload.message, env));
       }
 
-      // Immediately return 200 OK to Telegram
       return new Response("OK", { status: 200 });
     } catch (err) {
       console.error("Worker error:", err.message);
@@ -37,12 +38,10 @@ async function handleMessage(msg, env) {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
 
-  // Ignore non-text messages in group chats
   if (!text && msg.chat.type !== "private") {
-    return; // Silently ignore stickers, photos, videos etc. from normal users in groups
+    return; 
   }
 
-  // Array of bots
   const bots = [
     env.BOT_TOKEN_1, env.BOT_TOKEN_2, env.BOT_TOKEN_3, env.BOT_TOKEN_4,
     env.BOT_TOKEN_5, env.BOT_TOKEN_6, env.BOT_TOKEN_7
@@ -53,23 +52,18 @@ async function handleMessage(msg, env) {
     return;
   }
 
-  // 1. PRIVATE CHAT LOGIC
   if (msg.chat.type === "private") {
-    // A) DEEP LINKING: User requests a specific file
     if (text.startsWith("/start ")) {
       const payload = text.replace("/start ", "").trim();
       if (payload) return handleStartCommand(chatId, payload, env, bots);
     }
 
-    // B) ADMIN UPLOADER LOGIC
-    if (!env.ADMIN_ID || chatId.toString() !== env.ADMIN_ID) {
-      return sendWelcomeMessage(env.BOT_TOKEN_1, chatId, msg.from?.id || chatId, env);
+    if (!env.ADMIN_ID || chatId.toString() !== String(env.ADMIN_ID)) {
+      return sendWelcomeMessage(bots[0], chatId, msg.from?.id || chatId, env);
     }
     return handleAdminLogic(msg, env);
   }
 
-  // 2. GROUP MANAGER LOGIC
-  
   if (text.startsWith("/lang")) {
     const kb = {
       inline_keyboard: [
@@ -107,20 +101,17 @@ async function handleMessage(msg, env) {
     return;
   }
 
-  // Ignore other commands starting with "/"
   if (text.startsWith("/")) return;
 
-  // Round-Robin Logic using modulo operator
   const botIndex = msgId % bots.length;
   const selectedToken = bots[botIndex];
 
-  // Search for the movie in BLACK_BULL_CINEMA KV Storage
   const results = await searchMovieInKV(text, env.BLACK_BULL_CINEMA);
 
-  // If a movie is found, process the UI logic and reply
   if (results && results.length > 0) {
     const userFirstName = msg.from?.first_name || msg.chat?.first_name || "User";
-    await sendSearchResults(selectedToken, chatId, msg.from?.id || chatId, msgId, text, results, "all", env, null, userFirstName);
+    // Passing the array of bots to allow retry fallback if needed later, though for new msgs selectedToken is fine
+    await sendSearchResults([selectedToken], chatId, msg.from?.id || chatId, msgId, text, results, "all", env, null, userFirstName);
   } else {
     const langCode = await getUserLang(msg.from?.id || chatId, env);
     const T = LANGS[langCode] || LANGS.si;
@@ -147,7 +138,6 @@ async function handleAdminLogic(msg, env) {
     body: JSON.stringify({ chat_id: chatId, text: msgText, parse_mode: "HTML" }) 
   });
 
-  // Read current conversational state
   let state = {};
   const stateStr = await kv.get(`admin_state_${chatId}`);
   if (stateStr) state = JSON.parse(stateStr);
@@ -164,7 +154,7 @@ async function handleAdminLogic(msg, env) {
 
   if (text === "/nowurl") {
     let currentUrl = await kv.get("config_gateway_url");
-    if (!currentUrl) currentUrl = "https://idsmovieplanet.ishangadineth.online/"; // Default
+    if (!currentUrl) currentUrl = "https://idsmovieplanet.ishangadineth.online/"; 
     return sendMsg(`🔗 <b>Current Gateway URL:</b>\n<code>${currentUrl}</code>`);
   }
 
@@ -178,7 +168,6 @@ async function handleAdminLogic(msg, env) {
     return sendMsg("❌ <b>Upload Cancelled.</b> Send a new video to start again.");
   }
 
-  // Step 1: Receive File(s)
   let fileId = null;
   let fileType = "file";
   
@@ -192,7 +181,6 @@ async function handleAdminLogic(msg, env) {
       state.step = "accumulate";
       await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
       
-      // COPY TO DATABASE CHANNEL
       const dbChannelId = "-1003759058179";
       const copyUrl = `https://api.telegram.org/bot${env.BOT_TOKEN_1}/copyMessage`;
       const copyRes = await fetch(copyUrl, {
@@ -207,14 +195,12 @@ async function handleAdminLogic(msg, env) {
       
       const channelMsgId = copyData.result.message_id;
 
-      // Save each file independently to prevent KV race conditions during rapid multi-file forwarding
       await kv.put(`admin_file_${chatId}_${msg.message_id}`, JSON.stringify({ id: channelMsgId, type: "channel_msg" }));
       
       return sendMsg(`✅ <b>File Saved to Database!</b> <i>(Msg ID: ${channelMsgId})</i>\n\n<i>Forward more files to group them together, or type </i>/done<i> when you have sent all files for this set.</i>\n\n<i>Type /cancel to abort.</i>`);
     }
   }
 
-  // Step 2: Finish accumulation
   if (state.step === "accumulate" && text === "/done") {
     const list = await kv.list({ prefix: `admin_file_${chatId}_` });
     if (list.keys.length === 0) {
@@ -225,7 +211,7 @@ async function handleAdminLogic(msg, env) {
     for (const keyObj of list.keys) {
       const fileStr = await kv.get(keyObj.name);
       if (fileStr) files.push(JSON.parse(fileStr));
-      await kv.delete(keyObj.name); // cleanup
+      await kv.delete(keyObj.name); 
     }
     
     state.step = "ask_type";
@@ -239,7 +225,6 @@ async function handleAdminLogic(msg, env) {
     });
   }
 
-  // Step 3: Ask Title, Year, Rating
   if (state.step === "ask_details" && text) {
     const parts = text.split(",").map(s => s.trim());
     state.title = parts[0] || "Unknown";
@@ -250,7 +235,6 @@ async function handleAdminLogic(msg, env) {
     return sendMsg("2️⃣ Enter <b>Quality, Format</b>\n<i>(Comma separated. e.g: 1080p, WEB)</i>");
   }
 
-  // Step 4: Ask for Thumbnail
   if (state.step === "ask_quality" && text) {
     const parts = text.split(",").map(s => s.trim());
     state.quality = parts[0] || "Unknown";
@@ -272,27 +256,36 @@ async function handleAdminLogic(msg, env) {
     });
   }
 
-  // Step 5: Receive Thumbnail Photo
   if (state.step === "wait_for_thumbnail" && msg.photo) {
     const thumbId = msg.photo[msg.photo.length - 1].file_id;
     return finalizeSave(chatId, state, env, thumbId);
   }
 
-  // Fallback for private chat
   if (text && !text.startsWith("/")) {
     if (Object.keys(state).length > 0) {
       return sendMsg("⚠️ <b>You are currently in the middle of an upload.</b>\nType /cancel to abort if you want to search movies.");
     }
     
-    // Search movies in private chat!
     const results = await searchMovieInKV(text, env.BLACK_BULL_CINEMA);
     if (results && results.length > 0) {
       const userFirstName = msg.chat.first_name || "Admin";
-      return sendSearchResults(env.BOT_TOKEN_1, chatId, msg.message_id, text, results, "all", env, null, userFirstName);
+      return sendSearchResults([env.BOT_TOKEN_1], chatId, msg.from?.id || chatId, msg.message_id, text, results, "all", env, null, userFirstName);
     } else {
       return sendMsg(`❌ <b>'${text}' Not found in KV database.</b>\n\n👋 <b>Admin Uploader Panel:</b>\nForward any file to start uploading.`);
     }
   }
+}
+
+// Helper to safely answer callbacks for multiple bots
+async function answerCallbackSafe(bots, callbackId, text = null, showAlert = false) {
+  const body = { callback_query_id: callbackId };
+  if (text) { body.text = text; body.show_alert = showAlert; }
+  await Promise.all(bots.map(token => 
+    fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).catch(() => {})
+  ));
 }
 
 // ══════════════════════════════════════════════
@@ -310,198 +303,183 @@ async function handleCallback(cb, env, ctx) {
     const stateStr = await kv.get(`admin_state_${chatId}`);
     if (stateStr) state = JSON.parse(stateStr);
 
-  const editMsg = async (msgText) => fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/editMessageText`, { 
-    method: "POST", headers: {"Content-Type": "application/json"}, 
-    body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: msgText, parse_mode: "HTML" }) 
-  });
-
-  if (state.step === "ask_type") {
-    if (data === "type_movie" || data === "type_series") {
-      state.is_series = data === "type_series";
-      state.step = "ask_details";
-      await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
-      await editMsg(`✅ <b>Type selected:</b> ${state.is_series ? '📺 Series' : '🎬 Movie'}\n\n1️⃣ Enter <b>Name, Year, Rating</b>\n<i>(Comma separated. e.g: Avatar, 2009, 7.9)</i>`);
+    const bots = [];
+    for (let i = 1; i <= 7; i++) {
+      if (env[`BOT_TOKEN_${i}`]) bots.push(env[`BOT_TOKEN_${i}`]);
     }
-    return;
-  }
 
-  if (state.step === "ask_thumbnail") {
-    if (data === "thumb_yes") {
-      state.step = "wait_for_thumbnail";
-      await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
-      await editMsg("🖼 <b>Please send the Thumbnail Photo now.</b>\n<i>(Type /cancel to abort)</i>");
-    } else if (data === "thumb_no") {
-      await editMsg("🚫 <b>No thumbnail selected. Saving...</b>");
-      await finalizeSave(chatId, state, env, null);
+    const editMsg = async (msgText) => fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/editMessageText`, { 
+      method: "POST", headers: {"Content-Type": "application/json"}, 
+      body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: msgText, parse_mode: "HTML" }) 
+    });
+
+    if (state.step === "ask_type") {
+      if (data === "type_movie" || data === "type_series") {
+        state.is_series = data === "type_series";
+        state.step = "ask_details";
+        await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
+        await editMsg(`✅ <b>Type selected:</b> ${state.is_series ? '📺 Series' : '🎬 Movie'}\n\n1️⃣ Enter <b>Name, Year, Rating</b>\n<i>(Comma separated. e.g: Avatar, 2009, 7.9)</i>`);
+      }
+      return;
     }
-    return;
-  }
 
-  // ════ CALLBACKS FOR SEARCH UI ════
-  const bots = [];
-  for (let i = 1; i <= 7; i++) {
-    if (env[`BOT_TOKEN_${i}`]) bots.push(env[`BOT_TOKEN_${i}`]);
-  }
+    if (state.step === "ask_thumbnail") {
+      if (data === "thumb_yes") {
+        state.step = "wait_for_thumbnail";
+        await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
+        await editMsg("🖼 <b>Please send the Thumbnail Photo now.</b>\n<i>(Type /cancel to abort)</i>");
+      } else if (data === "thumb_no") {
+        await editMsg("🚫 <b>No thumbnail selected. Saving...</b>");
+        await finalizeSave(chatId, state, env, null);
+      }
+      return;
+    }
 
-  if (data.startsWith("setlang_")) {
-    const langCode = data.split("_")[1];
-    if (env.BLACK_BULL_CINEMA_LANG) {
-      if (langCode === "si") {
-        await env.BLACK_BULL_CINEMA_LANG.delete(`lang_${cb.from.id}`);
+    if (data.startsWith("setlang_")) {
+      const langCode = data.split("_")[1];
+      if (env.BLACK_BULL_CINEMA_LANG) {
+        if (langCode === "si") await env.BLACK_BULL_CINEMA_LANG.delete(`lang_${cb.from.id}`);
+        else await env.BLACK_BULL_CINEMA_LANG.put(`lang_${cb.from.id}`, langCode);
+      }
+      
+      let alertMsg = "✅ Language Updated!";
+      if (langCode === "si") alertMsg = "✅ ඔබේ භාශාව සිංහල ලෙස වෙනස් විය!";
+      else if (langCode === "en") alertMsg = "✅ Your language was changed to English!";
+      else if (langCode === "hi") alertMsg = "✅ आपकी भाषा बदल दी गई है!";
+      else if (langCode === "es") alertMsg = "✅ ¡Tu idioma ha sido cambiado!";
+      else if (langCode === "ta") alertMsg = "✅ உங்கள் மொழி மாற்றப்பட்டுள்ளது!";
+
+      await answerCallbackSafe(bots, cb.id, alertMsg, true);
+      
+      for (const token of bots) {
+        const res = await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ chat_id: chatId, message_id: msgId })
+        });
+        if ((await res.json()).ok) break;
+      }
+      return;
+    }
+
+    if (data === "lang_menu") {
+      const kb = {
+        inline_keyboard: [
+          [{ text: "🇱🇰 Sinhala (Default)", callback_data: "setlang_si" }],
+          [{ text: "🇬🇧 English", callback_data: "setlang_en" }, { text: "🇮🇳 Hindi", callback_data: "setlang_hi" }],
+          [{ text: "🇪🇸 Spanish", callback_data: "setlang_es" }, { text: "🇮🇳 Tamil", callback_data: "setlang_ta" }]
+        ]
+      };
+      
+      for (const token of bots) {
+        const res = await fetch(`https://api.telegram.org/bot${token}/editMessageCaption`, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: "🌐 <b>Select your preferred language:</b>", parse_mode: "HTML", reply_markup: kb })
+        });
+        if ((await res.json()).ok) break;
+      }
+
+      const autoDelete = async () => {
+        await new Promise(r => setTimeout(r, 10000));
+        for (const token of bots) {
+          const res = await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
+            method: "POST", headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId })
+          });
+          if ((await res.json()).ok) break;
+        }
+      };
+      if (typeof ctx !== "undefined" && ctx.waitUntil) ctx.waitUntil(autoDelete());
+      return;
+    }
+
+    if (data.startsWith("view_")) {
+      await answerCallbackSafe(bots, cb.id);
+
+      const payloadStr = data.substring(5);
+      const splitIndex = payloadStr.indexOf("|");
+      let movieId = payloadStr;
+      let originalQuery = "";
+      if (splitIndex !== -1) {
+        movieId = payloadStr.substring(0, splitIndex);
+        originalQuery = payloadStr.substring(splitIndex + 1);
+      }
+      
+      let searchKey = null;
+      if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
+      if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
+      
+      if (!searchKey) {
+        const directCheck = await kv.get(movieId);
+        if (directCheck) searchKey = movieId;
+      }
+      
+      if (searchKey) {
+        const existingStr = await kv.get(searchKey);
+        if (existingStr) {
+          const movieData = JSON.parse(existingStr);
+          await sendMovieReplyWithRetry(bots, 0, chatId, cb.message.reply_to_message?.message_id || msgId, movieData, env, msgId, originalQuery);
+        }
+      }
+      return;
+    }
+
+    if (data.startsWith("search_")) {
+      await answerCallbackSafe(bots, cb.id);
+      const query = data.substring(7);
+      const results = await searchMovieInKV(query, kv);
+      if (results && results.length > 0) {
+        const userFirstName = cb.message.chat.first_name || "User";
+        await sendSearchResults(bots, chatId, cb.from.id, cb.message.reply_to_message?.message_id || msgId, query, results, "all", env, msgId, userFirstName);
+      }
+      return;
+    }
+
+    if (data.startsWith("filter_")) {
+      await answerCallbackSafe(bots, cb.id);
+      const parts = data.split("_");
+      const fType = parts[1]; 
+      const query = parts.slice(2).join("_");
+      const results = await searchMovieInKV(query, kv);
+      if (results && results.length > 0) {
+        const userFirstName = cb.message.chat.first_name || "User";
+        await sendSearchResults(bots, chatId, cb.from.id, cb.message.reply_to_message?.message_id || msgId, query, results, fType, env, msgId, userFirstName);
+      }
+      return;
+    }
+
+    if (data.startsWith("check_sub_")) {
+      const payload = data.substring(10);
+      const isSubbed = await checkForceSub(env.BOT_TOKEN_1, cb.from.id);
+      
+      if (isSubbed) {
+        for (const token of bots) {
+          const res = await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, message_id: cb.message.message_id })
+          });
+          if ((await res.json()).ok) break;
+        }
+        await handleStartCommand(chatId, payload, env, bots);
       } else {
-        await env.BLACK_BULL_CINEMA_LANG.put(`lang_${cb.from.id}`, langCode);
+        await answerCallbackSafe(bots, cb.id, "❌ You must join both channels first!", true);
       }
+      return;
     }
-    
-    let alertMsg = "✅ Language Updated!";
-    if (langCode === "si") alertMsg = "✅ ඔබේ භාශාව සිංහල ලෙස වෙනස් විය!";
-    else if (langCode === "en") alertMsg = "✅ Your language was changed to English!";
-    else if (langCode === "hi") alertMsg = "✅ आपकी भाषा बदल दी गई है!";
-    else if (langCode === "es") alertMsg = "✅ ¡Tu idioma ha sido cambiado!";
-    else if (langCode === "ta") alertMsg = "✅ உங்கள் மொழி மாற்றப்பட்டுள்ளது!";
 
-    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/answerCallbackQuery`, {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ callback_query_id: cb.id, text: alertMsg, show_alert: true })
-    });
-    
-    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/deleteMessage`, {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ chat_id: chatId, message_id: msgId })
-    });
-    return;
-  }
-
-  if (data === "lang_menu") {
-    const kb = {
-      inline_keyboard: [
-        [{ text: "🇱🇰 Sinhala (Default)", callback_data: "setlang_si" }],
-        [{ text: "🇬🇧 English", callback_data: "setlang_en" }, { text: "🇮🇳 Hindi", callback_data: "setlang_hi" }],
-        [{ text: "🇪🇸 Spanish", callback_data: "setlang_es" }, { text: "🇮🇳 Tamil", callback_data: "setlang_ta" }]
-      ]
-    };
-    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/editMessageCaption`, {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: "🌐 <b>Select your preferred language:</b>", parse_mode: "HTML", reply_markup: kb })
-    });
-
-    const autoDelete = async () => {
-      await new Promise(r => setTimeout(r, 10000));
-      await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/deleteMessage`, {
-        method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ chat_id: chatId, message_id: msgId })
-      });
-    };
-    if (typeof ctx !== "undefined" && ctx.waitUntil) ctx.waitUntil(autoDelete());
-
-    return;
-  }
-
-  if (data.startsWith("view_")) {
-    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/answerCallbackQuery`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ callback_query_id: cb.id })
-    });
-
-    const payloadStr = data.substring(5);
-    const splitIndex = payloadStr.indexOf("|");
-    let movieId = payloadStr;
-    let originalQuery = "";
-    if (splitIndex !== -1) {
-      movieId = payloadStr.substring(0, splitIndex);
-      originalQuery = payloadStr.substring(splitIndex + 1);
-    }
-    
-    // Check FILEID KV for the index first, fallback to main KV for backward compatibility
-    let searchKey = null;
-    if (env.BLACK_BULL_CINEMA_FILEID) {
-      searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
-    }
-    if (!searchKey) {
-      searchKey = await kv.get(`idx_${movieId}`);
-    }
-    
-    if (searchKey) {
-      const existingStr = await kv.get(searchKey);
-      if (existingStr) {
-        const movieData = JSON.parse(existingStr);
-        await sendMovieReplyWithRetry(bots, 0, chatId, cb.message.reply_to_message?.message_id || msgId, movieData, env, msgId, originalQuery);
+    if (data.startsWith("req_")) {
+      const query = data.substring(4);
+      if (env.ADMIN_ID) {
+        const adminMsg = `📢 <b>New Request from User!</b>\n👤 <b>User:</b> <a href="tg://user?id=${cb.from.id}">${cb.from.first_name || "User"}</a> (<code>${cb.from.id}</code>)\n🔎 <b>Requested:</b> ${query}`;
+        await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, { 
+          method: "POST", headers: {"Content-Type": "application/json"}, 
+          body: JSON.stringify({ chat_id: env.ADMIN_ID, text: adminMsg, parse_mode: "HTML" }) 
+        });
+        await answerCallbackSafe(bots, cb.id, "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!", true);
       }
+      return;
     }
-  }
-
-  if (data.startsWith("search_")) {
-    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/answerCallbackQuery`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ callback_query_id: cb.id })
-    });
-    const query = data.substring(7);
-    const results = await searchMovieInKV(query, kv);
-    if (results && results.length > 0) {
-      const userFirstName = cb.message.chat.first_name || "User";
-      await sendSearchResults(bots[0], chatId, cb.message.reply_to_message?.message_id || msgId, query, results, "all", env, msgId, userFirstName);
-    }
-  }
-
-  if (data.startsWith("filter_")) {
-    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/answerCallbackQuery`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ callback_query_id: cb.id })
-    });
-
-    const parts = data.split("_");
-    const fType = parts[1]; // movies or series
-    const query = parts.slice(2).join("_");
-    const results = await searchMovieInKV(query, kv);
-    if (results && results.length > 0) {
-      const userFirstName = cb.message.chat.first_name || "User";
-      await sendSearchResults(bots[0], chatId, cb.message.reply_to_message?.message_id || msgId, query, results, fType, env, msgId, userFirstName);
-    }
-  }
-
-  if (data.startsWith("check_sub_")) {
-    const payload = data.substring(10);
-    const isSubbed = await checkForceSub(env.BOT_TOKEN_1, cb.from.id);
-    
-    if (isSubbed) {
-      // Delete the force join message
-      await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/deleteMessage`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, message_id: cb.message.message_id })
-      });
-      // Send the files via Deep Link logic
-      await handleStartCommand(chatId, payload, env, bots);
-    } else {
-      // Answer callback with alert
-      await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/answerCallbackQuery`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ callback_query_id: cb.id, text: "❌ You must join both channels first!", show_alert: true })
-      });
-    }
-    return;
-  }
-
-  if (data.startsWith("req_")) {
-    const query = data.substring(4);
-    if (env.ADMIN_ID) {
-      const adminMsg = `📢 <b>New Request from User!</b>\n👤 <b>User:</b> <a href="tg://user?id=${chatId}">${cb.message.chat.first_name || "User"}</a> (<code>${chatId}</code>)\n🔎 <b>Requested:</b> ${query}`;
-      await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, { 
-        method: "POST", headers: {"Content-Type": "application/json"}, 
-        body: JSON.stringify({ chat_id: env.ADMIN_ID, text: adminMsg, parse_mode: "HTML" }) 
-      });
-      // Answer Callback
-      await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/answerCallbackQuery`, {
-        method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ callback_query_id: cb.id, text: "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!", show_alert: true })
-      });
-    }
-  }
-} catch (err) {
+  } catch (err) {
     console.error("Callback Error:", err.message, err.stack);
-    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/answerCallbackQuery`, {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ callback_query_id: cb.id, text: `Manager Error: ${err.message}`, show_alert: true })
-    });
   }
 }
 
@@ -513,7 +491,7 @@ async function finalizeSave(chatId, state, env, thumbId) {
   const newQ = `${state.quality.toLowerCase()}_${state.format.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
   const gatewayId = `${safeTitle}_${newQ}`; 
   
-  const movieId = Date.now().toString(36); // Short Unique ID
+  const movieId = Date.now().toString(36); 
 
   let movieData = { 
     id: movieId, 
@@ -528,9 +506,7 @@ async function finalizeSave(chatId, state, env, thumbId) {
     try { 
       const parsed = JSON.parse(existingStr); 
       movieData = parsed;
-      // Ensure existing movies get an ID if missing
       if (!movieData.id) movieData.id = movieId;
-      // Ensure is_series is updated if not present
       if (movieData.is_series === undefined) movieData.is_series = state.is_series || false;
     } catch(e) {}
   }
@@ -557,13 +533,15 @@ async function finalizeSave(chatId, state, env, thumbId) {
   await kv.delete(`admin_state_${chatId}`);
 
   if (env.BLACK_BULL_CINEMA_FILEID) {
-    await env.BLACK_BULL_CINEMA_FILEID.put(`idx_${movieData.id}`, searchKey); // Secondary index moved to FILEID KV
+    await env.BLACK_BULL_CINEMA_FILEID.put(`idx_${movieData.id}`, searchKey);
     const filesToSave = state.files.map(f => ({
       id: f.id,
       type: f.type,
       caption: ""
     }));
     await env.BLACK_BULL_CINEMA_FILEID.put(gatewayId, JSON.stringify(filesToSave));
+  } else {
+    await kv.put(`idx_${movieData.id}`, searchKey); 
   }
 
   const sendMsg = async (msgText) => fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, { 
@@ -590,7 +568,7 @@ async function handleStartCommand(chatId, payload, env, bots) {
     return;
   }
 
-  const fileKey = payload; // Payload is exactly the key now, e.g. Movie_01_1080p_webdl
+  const fileKey = payload; 
   const fileDataStr = await env.BLACK_BULL_CINEMA_FILEID.get(fileKey);
   
   if (!fileDataStr) {
@@ -602,7 +580,6 @@ async function handleStartCommand(chatId, payload, env, bots) {
   const fileArray = JSON.parse(fileDataStr);
   const filesToProcess = Array.isArray(fileArray) ? fileArray : [fileArray];
 
-  // Send all files using Manager Bot token directly (bots[0])
   for (const file of filesToProcess) {
     let method = "sendDocument";
     let requestPayload = { chat_id: chatId, caption: file.caption || "", parse_mode: "HTML" };
@@ -617,7 +594,6 @@ async function handleStartCommand(chatId, payload, env, bots) {
         parse_mode: "HTML"
       };
     } else {
-      // Fallback for old file_ids
       const typeToMethod = {
         "video": "sendVideo",
         "document": "sendDocument",
@@ -710,7 +686,7 @@ const LANGS = {
     hello: "👋 வணக்கம் {name},\n\nநீங்கள் தேடும் '<b>{query}</b>' திரைப்படம் இங்கே உள்ளதா என்று பார்க்கவும்.. 👇\n\n📌 <i>நீங்கள் ஒரு தொடரை தேடுகிறீர்கள் என்றால், 'Series' பொத்தானை அழுத்தவும்.</i>",
     movies: "🎬 Movies",
     series: "📺 Series",
-    not_found: "❌ '<b>{query}</b>' திரைப்படம் எங்கள் கணினியில் இல்லை.\n\nநிர்வாகியிடம் கோர கீழேயுள்ள பொத்தானை அழுத்தவும். 👇",
+    not_found: "❌ '<b>{query}</b>' திரைப்படம் எங்கள் கணினியில் இல்லை.\n\nநிவாகியிடம் கோர கீழேயுள்ள பொத்தானை அழுத்தவும். 👇",
     not_found_cat: "🚫 இந்த வகைக்கு முடிவுகள் எதுவும் கிடைக்கவில்லை.",
     not_here: "😮 இங்கே இல்லை",
     change_lang: "🌐 Change Language",
@@ -729,7 +705,7 @@ async function getUserLang(userId, env) {
     const lang = await env.BLACK_BULL_CINEMA_LANG.get(`lang_${userId}`);
     if (lang && LANGS[lang]) return lang;
   }
-  return "si"; // Default Sinhala
+  return "si"; 
 }
 
 async function getChannelLink(botToken, channelId, kv) {
@@ -758,7 +734,7 @@ async function checkForceSub(botToken, userId) {
         return false;
       }
     } catch (e) {
-      return false; // Force join if error
+      return false; 
     }
   }
   return true;
@@ -804,11 +780,14 @@ async function sendWelcomeMessage(botToken, chatId, userId, env) {
   });
 }
 
+// Memory Cache implemented for Bot Username fetching
 async function getBotUsername(token) {
+  if (botUsernamesCache[token]) return botUsernamesCache[token];
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
     const data = await res.json();
     if (data.ok && data.result) {
+      botUsernamesCache[token] = data.result.username;
       return data.result.username;
     }
   } catch (e) {
@@ -830,53 +809,50 @@ async function searchMovieInKV(query, kv) {
     const dataString = await kv.get(keyObj.name);
     if (dataString) {
       try {
-        results.push(JSON.parse(dataString));
+        const parsed = JSON.parse(dataString);
+        parsed._key = keyObj.name; 
+        results.push(parsed);
       } catch (e) {}
     }
   }
   return results;
 }
 
-async function sendSearchResults(botToken, chatId, userId, replyToMsgId, query, results, filterType, env, editMsgId = null, firstName = "User") {
+// Updated to use the Multi-Bot Retry Loop for Editing Media!
+async function sendSearchResults(bots, chatId, userId, replyToMsgId, query, results, filterType, env, editMsgId = null, firstName = "User") {
   const langCode = await getUserLang(userId, env);
   const T = LANGS[langCode] || LANGS.si;
+  const botList = Array.isArray(bots) ? bots : [bots];
 
-  // Filter Logic
   let filtered = results;
   if (filterType === "movies") filtered = results.filter(r => !r.is_series);
   if (filterType === "series") filtered = results.filter(r => r.is_series);
 
-  // Default Random Images Array
   const defaultImages = [
     "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000", 
     "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000",
     "https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=1000"
   ];
   const randomImg = defaultImages[Math.floor(Math.random() * defaultImages.length)];
-
   let text = T.hello.replace("{name}", firstName).replace("{query}", query);
 
   const keyboard = [];
-  
-  // Top Filter Buttons
   keyboard.push([
     { text: filterType === "movies" ? `✅ ${T.movies}` : T.movies, callback_data: `filter_movies_${query}` },
     { text: filterType === "series" ? `✅ ${T.series}` : T.series, callback_data: `filter_series_${query}` }
   ]);
 
-  // List Buttons
   for (const r of filtered) {
     const safeQuery = query.substring(0, 30);
-    keyboard.push([{ text: `🎬 ${r.title} (${r.year})`, callback_data: `view_${r.id}|${safeQuery}` }]);
+    const mId = r.id ? r.id : r._key.substring(0, 25);
+    keyboard.push([{ text: `🎬 ${r.title} (${r.year})`, callback_data: `view_${mId}|${safeQuery}` }]);
   }
 
   if (filtered.length === 0) {
     keyboard.push([{ text: T.not_found_cat, callback_data: "none" }]);
   }
 
-  // Not Here Button
   keyboard.push([{ text: T.not_here, callback_data: `req_${query.substring(0,40)}` }]);
-  // Change Language Button
   keyboard.push([{ text: T.change_lang, callback_data: "lang_menu" }]);
 
   const payload = {
@@ -884,44 +860,50 @@ async function sendSearchResults(botToken, chatId, userId, replyToMsgId, query, 
     reply_markup: { inline_keyboard: keyboard }
   };
 
-  let tgApiUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
-  if (editMsgId) {
-    tgApiUrl = `https://api.telegram.org/bot${botToken}/editMessageMedia`;
-    payload.message_id = editMsgId;
-    payload.media = { type: "photo", media: randomImg, caption: text, parse_mode: "HTML" };
-  } else {
-    payload.photo = randomImg;
-    payload.caption = text;
-    payload.parse_mode = "HTML";
-    if (replyToMsgId) payload.reply_to_message_id = replyToMsgId;
-  }
+  for (const botToken of botList) {
+    let tgApiUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
+    if (editMsgId) {
+      tgApiUrl = `https://api.telegram.org/bot${botToken}/editMessageMedia`;
+      payload.message_id = editMsgId;
+      payload.media = { type: "photo", media: randomImg, caption: text, parse_mode: "HTML" };
+    } else {
+      payload.photo = randomImg;
+      payload.caption = text;
+      payload.parse_mode = "HTML";
+      if (replyToMsgId) payload.reply_to_message_id = replyToMsgId;
+    }
 
-  const res = await fetch(tgApiUrl, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-  const data = await res.json();
-  if (!data.ok) throw new Error(data.description);
+    try {
+      const res = await fetch(tgApiUrl, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      
+      // If success or "message is not modified" (preventing 400 error on duplicate clicks)
+      if (data.ok || (data.description && data.description.includes("modified"))) {
+        return; 
+      }
+    } catch (e) {
+      console.error("sendSearchResults API Error:", e);
+    }
+  }
 }
 
 async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, movieData, env, editMsgId = null, originalQuery = null) {
-  // Format the UI Message Details
   const text = `🎬 <b>${movieData.is_series ? 'Series' : 'Movie'} Found!</b>\n\n` +
     `📌 <b>Title:</b> ${movieData.title}\n` +
     `📅 <b>Year:</b> ${movieData.year}\n` +
     `⭐ <b>Rating:</b> ${movieData.rating}\n\n` +
     `<i>Select quality to download below:</i>`;
 
-  // Fetch Dynamic Gateway URL
   let baseUrl = "https://idsmovieplanet.ishangadineth.online";
   if (env && env.BLACK_BULL_CINEMA) {
     const customUrl = await env.BLACK_BULL_CINEMA.get("config_gateway_url");
     if (customUrl) baseUrl = customUrl;
   }
-  // Ensure no trailing slash for clean building
   if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
 
-  // Try each bot starting from the Round-Robin selected index
   for (let offset = 0; offset < bots.length; offset++) {
     const currentIndex = (startIndex + offset) % bots.length;
     const botToken = bots[currentIndex];
@@ -929,7 +911,6 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
     const botUser = await getBotUsername(botToken);
     if (botUser === "UnknownBot") continue;
 
-    // Dynamically generate buttons based on 'qualities' array in KV
     const keyboard = [];
     if (movieData.qualities && Array.isArray(movieData.qualities)) {
       for (let i = 0; i < movieData.qualities.length; i += 2) {
@@ -943,12 +924,12 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
         keyboard.push(row);
       }
     } else {
-    keyboard.push([{ text: "📥 Click Here to Download", url: `${baseUrl}/?bot=${botUser}` }]);
-  }
+      keyboard.push([{ text: "📥 Click Here to Download", url: `${baseUrl}/?bot=${botUser}` }]);
+    }
 
-  if (originalQuery) {
-    keyboard.push([{ text: "⬅️ Back to Search", callback_data: `search_${originalQuery}` }]);
-  }
+    if (originalQuery) {
+      keyboard.push([{ text: "⬅️ Back to Search", callback_data: `search_${originalQuery}` }]);
+    }
 
     const defaultImages = [
       "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000", 
@@ -956,7 +937,7 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
       "https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=1000"
     ];
     const randomImg = defaultImages[Math.floor(Math.random() * defaultImages.length)];
-    const movieThumb = movieData.thumb || randomImg; // Always use an image so editMessageMedia works
+    const movieThumb = movieData.thumb || randomImg; 
 
     const payload = {
       chat_id: chatId,
@@ -983,11 +964,8 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
       });
       const data = await res.json();
 
-      if (data.ok) {
-        break; // Success! Stop trying other bots
-      } else {
-        console.error("Bot failed:", botToken, data.description);
-        throw new Error(data.description); // Throw so it's caught by the callback try/catch
+      if (data.ok || (data.description && data.description.includes("modified"))) {
+        break; 
       }
     } catch (e) {
       console.error(`Fetch error for Bot ${currentIndex + 1}:`, e);
