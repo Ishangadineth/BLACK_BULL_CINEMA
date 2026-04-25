@@ -184,14 +184,34 @@ export default {
 
         if (data.startsWith("req_")) {
           const query = data.substring(4);
-          if (ADMIN_ID) {
-            const adminMsg = `📢 <b>New Request from User!</b>\n👤 <b>User:</b> <a href="tg://user?id=${userId}">${cb.from.first_name || "User"}</a> (<code>${userId}</code>)\n🔎 <b>Requested:</b> ${query}`;
-            await fetch(`${TG_API}/sendMessage`, { 
-              method: "POST", headers: {"Content-Type": "application/json"}, 
-              body: JSON.stringify({ chat_id: ADMIN_ID, text: adminMsg, parse_mode: "HTML" }) 
-            });
-            await answerCallback(TG_API, cb.id, "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!");
-          }
+          const reqText = `සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉`;
+          const kb = { inline_keyboard: [[{ text: "💝 Send Request 💝", callback_data: `reqask_${query}` }]] };
+          
+          await fetch(`${TG_API}/editMessageCaption`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: reqText, reply_markup: kb })
+          });
+          return new Response("OK");
+        }
+
+        if (data.startsWith("reqask_")) {
+          const query = data.substring(7);
+          const askText = `හරි දැන් ඔයා ඕනි ෆිල්ම් එකක්ද ටීවී සිරීස් එකක්ද කියලා තෝරන්නකෝ.. 🤔`;
+          const reqBotUser = env.REQ_BOT_USERNAME || "YOUR_REQ_BOT_USERNAME"; 
+          
+          const safeParam = query.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 40);
+          
+          const kb = { 
+            inline_keyboard: [[
+              { text: "ෆිල්ම් එකක්", url: `https://t.me/${reqBotUser}?start=m_${safeParam}` },
+              { text: "සිරීස් එකක්", url: `https://t.me/${reqBotUser}?start=s_${safeParam}` }
+            ]] 
+          };
+          
+          await fetch(`${TG_API}/editMessageCaption`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: askText, reply_markup: kb })
+          });
           return new Response("OK");
         }
 
@@ -513,10 +533,10 @@ const LANGS = {
     series: "📺 Series",
     not_found: "❌ ඔයා හොයන '<b>{query}</b>' අපේ පද්ධතියේ නෑ.\n\nපහළ බට්න් එක ඔබලා Admin ට Request එකක් දාන්න. 👇",
     not_found_cat: "🚫 No results found for this category.",
-    not_here: "😮 මෙතන නෑනේ",
+    not_here: "මේ list එකේ නෑනේ🥲",
     change_lang: "🌐 Change Language",
     req_sent: "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!",
-    req_btn: "😮 මෙතන නෑනේ (Request Movie)",
+    req_btn: "මේ list එකේ නෑනේ🥲 (Request Movie)",
     force_sub: "❌ <b>ඔයා අපේ Main Channels දෙකටම Join වෙලා නෑ!</b>\n\nපහළ තියෙන Channels දෙකටම Join වෙලා ඇවිත් ආපහු '✅ I have Joined' කියන එක ඔබන්න.",
     joined_btn: "✅ I have Joined",
     welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ආයුබෝවන්! සාදරයෙන් පිළිගන්න.\nඔයාට අවශ්‍ය මූවීස් සහ සීරීස් පහසුවෙන් ලබා ගැනීමට අපගේ චැනල් එකේ ඇති ලින්ක් එකක් ක්ලික් කර මෙතැනට පැමිණෙන්න.\n\n🛡️ <b>Safe & Fast Delivery</b>",

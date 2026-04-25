@@ -39,7 +39,7 @@ async function handleMessage(msg, env) {
   const msgId = msg.message_id;
 
   if (!text && msg.chat.type !== "private") {
-    return; 
+    return;
   }
 
   const bots = [
@@ -73,7 +73,7 @@ async function handleMessage(msg, env) {
       ]
     };
     return fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
-      method: "POST", headers: {"Content-Type": "application/json"},
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text: "🌐 <b>Select your preferred language:</b>", parse_mode: "HTML", reply_markup: kb })
     });
   }
@@ -81,22 +81,22 @@ async function handleMessage(msg, env) {
   if (text === "/list") {
     const list = await env.BLACK_BULL_CINEMA.list();
     const movieKeys = list.keys.filter(k => !k.name.startsWith("admin_") && !k.name.startsWith("site_") && !k.name.startsWith("verified_") && !k.name.startsWith("idx_"));
-    
+
     if (movieKeys.length === 0) {
-       await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, { 
-         method: "POST", headers: {"Content-Type": "application/json"}, 
-         body: JSON.stringify({ chat_id: chatId, text: "📂 <b>No movies available yet.</b>", parse_mode: "HTML" }) 
-       });
-       return;
+      await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text: "📂 <b>No movies available yet.</b>", parse_mode: "HTML" })
+      });
+      return;
     }
 
-    const listText = `📂 <b>Available Movies List:</b>\n\n` + 
-      movieKeys.map((k, i) => `${i+1}. <code>${k.name}</code>`).join("\n") +
+    const listText = `📂 <b>Available Movies List:</b>\n\n` +
+      movieKeys.map((k, i) => `${i + 1}. <code>${k.name}</code>`).join("\n") +
       `\n\n<i>Tap a movie name to copy it, then paste it to search!</i>`;
 
-    await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, { 
-         method: "POST", headers: {"Content-Type": "application/json"}, 
-         body: JSON.stringify({ chat_id: chatId, text: listText, parse_mode: "HTML" }) 
+    await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: listText, parse_mode: "HTML" })
     });
     return;
   }
@@ -118,7 +118,7 @@ async function handleMessage(msg, env) {
     const notFoundText = T.not_found.replace("{query}", text);
     const kb = { inline_keyboard: [[{ text: T.req_btn, callback_data: `req_${text.substring(0, 40)}` }]] };
     await fetch(`https://api.telegram.org/bot${selectedToken}/sendMessage`, {
-      method: "POST", headers: {"Content-Type": "application/json"},
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text: notFoundText, parse_mode: "HTML", reply_markup: kb })
     });
   }
@@ -132,10 +132,10 @@ async function handleAdminLogic(msg, env) {
   const chatId = msg.chat.id;
   const text = msg.text ? msg.text.trim() : "";
   const kv = env.BLACK_BULL_CINEMA;
-  
-  const sendMsg = async (msgText) => fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, { 
-    method: "POST", headers: {"Content-Type": "application/json"}, 
-    body: JSON.stringify({ chat_id: chatId, text: msgText, parse_mode: "HTML" }) 
+
+  const sendMsg = async (msgText) => fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text: msgText, parse_mode: "HTML" })
   });
 
   let state = {};
@@ -154,7 +154,7 @@ async function handleAdminLogic(msg, env) {
 
   if (text === "/nowurl") {
     let currentUrl = await kv.get("config_gateway_url");
-    if (!currentUrl) currentUrl = "https://idsmovieplanet.ishangadineth.online/"; 
+    if (!currentUrl) currentUrl = "https://idsmovieplanet.ishangadineth.online/";
     return sendMsg(`🔗 <b>Current Gateway URL:</b>\n<code>${currentUrl}</code>`);
   }
 
@@ -170,7 +170,7 @@ async function handleAdminLogic(msg, env) {
 
   let fileId = null;
   let fileType = "file";
-  
+
   if (msg.video) { fileId = msg.video.file_id; fileType = "video"; }
   else if (msg.document) { fileId = msg.document.file_id; fileType = "document"; }
   else if (msg.audio) { fileId = msg.audio.file_id; fileType = "audio"; }
@@ -180,7 +180,7 @@ async function handleAdminLogic(msg, env) {
     if (!state.step || state.step === "accumulate") {
       state.step = "accumulate";
       await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
-      
+
       const dbChannelId = "-1003759058179";
       const copyUrl = `https://api.telegram.org/bot${env.BOT_TOKEN_1}/copyMessage`;
       const copyRes = await fetch(copyUrl, {
@@ -188,15 +188,15 @@ async function handleAdminLogic(msg, env) {
         body: JSON.stringify({ chat_id: dbChannelId, from_chat_id: chatId, message_id: msg.message_id })
       });
       const copyData = await copyRes.json();
-      
+
       if (!copyData.ok) {
         return sendMsg(`❌ <b>Failed to copy to Database Channel!</b>\nError: <code>${copyData.description}</code>\n\n<i>Did you add the Manager Bot to the channel as an Admin?</i>`);
       }
-      
+
       const channelMsgId = copyData.result.message_id;
 
       await kv.put(`admin_file_${chatId}_${msg.message_id}`, JSON.stringify({ id: channelMsgId, type: "channel_msg" }));
-      
+
       return sendMsg(`✅ <b>File Saved to Database!</b> <i>(Msg ID: ${channelMsgId})</i>\n\n<i>Forward more files to group them together, or type </i>/done<i> when you have sent all files for this set.</i>\n\n<i>Type /cancel to abort.</i>`);
     }
   }
@@ -206,22 +206,22 @@ async function handleAdminLogic(msg, env) {
     if (list.keys.length === 0) {
       return sendMsg("⚠️ No files received yet. Forward files first.");
     }
-    
+
     const files = [];
     for (const keyObj of list.keys) {
       const fileStr = await kv.get(keyObj.name);
       if (fileStr) files.push(JSON.parse(fileStr));
-      await kv.delete(keyObj.name); 
+      await kv.delete(keyObj.name);
     }
-    
+
     state.step = "ask_type";
     state.files = files;
     await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
-    
-    const kb = { inline_keyboard: [[ { text: "🎬 Movie", callback_data: "type_movie" }, { text: "📺 Series", callback_data: "type_series" } ]] };
-    return fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, { 
-      method: "POST", headers: {"Content-Type": "application/json"}, 
-      body: JSON.stringify({ chat_id: chatId, text: `📦 <b>${files.length} Files Grouped Successfully!</b>\n\nWhat type of content is this?`, parse_mode: "HTML", reply_markup: kb }) 
+
+    const kb = { inline_keyboard: [[{ text: "🎬 Movie", callback_data: "type_movie" }, { text: "📺 Series", callback_data: "type_series" }]] };
+    return fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: `📦 <b>${files.length} Files Grouped Successfully!</b>\n\nWhat type of content is this?`, parse_mode: "HTML", reply_markup: kb })
     });
   }
 
@@ -239,20 +239,20 @@ async function handleAdminLogic(msg, env) {
     const parts = text.split(",").map(s => s.trim());
     state.quality = parts[0] || "Unknown";
     state.format = parts[1] || "";
-    
+
     state.step = "ask_thumbnail";
     await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
-    
+
     const keyboard = {
       inline_keyboard: [[
         { text: "✅ Yes", callback_data: "thumb_yes" },
         { text: "❌ No", callback_data: "thumb_no" }
       ]]
     };
-    
-    return fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, { 
-      method: "POST", headers: {"Content-Type": "application/json"}, 
-      body: JSON.stringify({ chat_id: chatId, text: "🖼 <b>Do you want to add a Thumbnail for the Group Message?</b>", parse_mode: "HTML", reply_markup: keyboard }) 
+
+    return fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: "🖼 <b>Do you want to add a Thumbnail for the Group Message?</b>", parse_mode: "HTML", reply_markup: keyboard })
     });
   }
 
@@ -265,7 +265,7 @@ async function handleAdminLogic(msg, env) {
     if (Object.keys(state).length > 0) {
       return sendMsg("⚠️ <b>You are currently in the middle of an upload.</b>\nType /cancel to abort if you want to search movies.");
     }
-    
+
     const results = await searchMovieInKV(text, env.BLACK_BULL_CINEMA);
     if (results && results.length > 0) {
       const userFirstName = msg.chat.first_name || "Admin";
@@ -280,11 +280,11 @@ async function handleAdminLogic(msg, env) {
 async function answerCallbackSafe(bots, callbackId, text = null, showAlert = false) {
   const body = { callback_query_id: callbackId };
   if (text) { body.text = text; body.show_alert = showAlert; }
-  await Promise.all(bots.map(token => 
+  await Promise.all(bots.map(token =>
     fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
-    }).catch(() => {})
+    }).catch(() => { })
   ));
 }
 
@@ -308,9 +308,9 @@ async function handleCallback(cb, env, ctx) {
       if (env[`BOT_TOKEN_${i}`]) bots.push(env[`BOT_TOKEN_${i}`]);
     }
 
-    const editMsg = async (msgText) => fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/editMessageText`, { 
-      method: "POST", headers: {"Content-Type": "application/json"}, 
-      body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: msgText, parse_mode: "HTML" }) 
+    const editMsg = async (msgText) => fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/editMessageText`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: msgText, parse_mode: "HTML" })
     });
 
     if (state.step === "ask_type") {
@@ -341,7 +341,7 @@ async function handleCallback(cb, env, ctx) {
         if (langCode === "si") await env.BLACK_BULL_CINEMA_LANG.delete(`lang_${cb.from.id}`);
         else await env.BLACK_BULL_CINEMA_LANG.put(`lang_${cb.from.id}`, langCode);
       }
-      
+
       let alertMsg = "✅ Language Updated!";
       if (langCode === "si") alertMsg = "✅ ඔබේ භාශාව සිංහල ලෙස වෙනස් විය!";
       else if (langCode === "en") alertMsg = "✅ Your language was changed to English!";
@@ -350,10 +350,10 @@ async function handleCallback(cb, env, ctx) {
       else if (langCode === "ta") alertMsg = "✅ உங்கள் மொழி மாற்றப்பட்டுள்ளது!";
 
       await answerCallbackSafe(bots, cb.id, alertMsg, true);
-      
+
       for (const token of bots) {
         const res = await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
-          method: "POST", headers: {"Content-Type": "application/json"},
+          method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ chat_id: chatId, message_id: msgId })
         });
         if ((await res.json()).ok) break;
@@ -369,10 +369,10 @@ async function handleCallback(cb, env, ctx) {
           [{ text: "🇪🇸 Spanish", callback_data: "setlang_es" }, { text: "🇮🇳 Tamil", callback_data: "setlang_ta" }]
         ]
       };
-      
+
       for (const token of bots) {
         const res = await fetch(`https://api.telegram.org/bot${token}/editMessageCaption`, {
-          method: "POST", headers: {"Content-Type": "application/json"},
+          method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: "🌐 <b>Select your preferred language:</b>", parse_mode: "HTML", reply_markup: kb })
         });
         if ((await res.json()).ok) break;
@@ -382,7 +382,7 @@ async function handleCallback(cb, env, ctx) {
         await new Promise(r => setTimeout(r, 10000));
         for (const token of bots) {
           const res = await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
-            method: "POST", headers: {"Content-Type": "application/json"},
+            method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ chat_id: chatId, message_id: msgId })
           });
           if ((await res.json()).ok) break;
@@ -403,16 +403,16 @@ async function handleCallback(cb, env, ctx) {
         movieId = payloadStr.substring(0, splitIndex);
         originalQuery = payloadStr.substring(splitIndex + 1);
       }
-      
+
       let searchKey = null;
       if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
       if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
-      
+
       if (!searchKey) {
         const directCheck = await kv.get(movieId);
         if (directCheck) searchKey = movieId;
       }
-      
+
       if (searchKey) {
         const existingStr = await kv.get(searchKey);
         if (existingStr) {
@@ -437,7 +437,7 @@ async function handleCallback(cb, env, ctx) {
     if (data.startsWith("filter_")) {
       await answerCallbackSafe(bots, cb.id);
       const parts = data.split("_");
-      const fType = parts[1]; 
+      const fType = parts[1];
       const query = parts.slice(2).join("_");
       const results = await searchMovieInKV(query, kv);
       if (results && results.length > 0) {
@@ -450,7 +450,7 @@ async function handleCallback(cb, env, ctx) {
     if (data.startsWith("check_sub_")) {
       const payload = data.substring(10);
       const isSubbed = await checkForceSub(env.BOT_TOKEN_1, cb.from.id);
-      
+
       if (isSubbed) {
         for (const token of bots) {
           const res = await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
@@ -468,13 +468,43 @@ async function handleCallback(cb, env, ctx) {
 
     if (data.startsWith("req_")) {
       const query = data.substring(4);
-      if (env.ADMIN_ID) {
-        const adminMsg = `📢 <b>New Request from User!</b>\n👤 <b>User:</b> <a href="tg://user?id=${cb.from.id}">${cb.from.first_name || "User"}</a> (<code>${cb.from.id}</code>)\n🔎 <b>Requested:</b> ${query}`;
-        await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, { 
-          method: "POST", headers: {"Content-Type": "application/json"}, 
-          body: JSON.stringify({ chat_id: env.ADMIN_ID, text: adminMsg, parse_mode: "HTML" }) 
+      const reqText = `සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉`;
+      const kb = { inline_keyboard: [[{ text: "💝 Send Request 💝", callback_data: `reqask_${query}` }]] };
+      
+      await answerCallbackSafe(bots, cb.id);
+      
+      for (const token of bots) {
+        const res = await fetch(`https://api.telegram.org/bot${token}/editMessageCaption`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: reqText, reply_markup: kb })
         });
-        await answerCallbackSafe(bots, cb.id, "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!", true);
+        if ((await res.json()).ok) break;
+      }
+      return;
+    }
+
+    if (data.startsWith("reqask_")) {
+      const query = data.substring(7);
+      const askText = `හරි දැන් ඔයා ඕනි ෆිල්ම් එකක්ද ටීවී සිරීස් එකක්ද කියලා තෝරන්නකෝ.. 🤔`;
+      const reqBotUser = env.REQ_BOT_USERNAME || "YOUR_REQ_BOT_USERNAME"; 
+      
+      const safeParam = query.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 40);
+      
+      const kb = { 
+        inline_keyboard: [[
+          { text: "ෆිල්ම් එකක්", url: `https://t.me/${reqBotUser}?start=m_${safeParam}` },
+          { text: "සිරීස් එකක්", url: `https://t.me/${reqBotUser}?start=s_${safeParam}` }
+        ]] 
+      };
+      
+      await answerCallbackSafe(bots, cb.id);
+      
+      for (const token of bots) {
+        const res = await fetch(`https://api.telegram.org/bot${token}/editMessageCaption`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: askText, reply_markup: kb })
+        });
+        if ((await res.json()).ok) break;
       }
       return;
     }
@@ -486,29 +516,29 @@ async function handleCallback(cb, env, ctx) {
 async function finalizeSave(chatId, state, env, thumbId) {
   const kv = env.BLACK_BULL_CINEMA;
   const searchKey = state.title.toLowerCase().trim();
-  const safeTitle = searchKey.replace(/\s+/g, '_'); 
-  
-  const newQ = `${state.quality.toLowerCase()}_${state.format.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-  const gatewayId = `${safeTitle}_${newQ}`; 
-  
-  const movieId = Date.now().toString(36); 
+  const safeTitle = searchKey.replace(/\s+/g, '_');
 
-  let movieData = { 
-    id: movieId, 
-    title: state.title, 
-    year: state.year, 
-    rating: state.rating, 
-    is_series: state.is_series || false, 
-    qualities: [] 
+  const newQ = `${state.quality.toLowerCase()}_${state.format.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+  const gatewayId = `${safeTitle}_${newQ}`;
+
+  const movieId = Date.now().toString(36);
+
+  let movieData = {
+    id: movieId,
+    title: state.title,
+    year: state.year,
+    rating: state.rating,
+    is_series: state.is_series || false,
+    qualities: []
   };
   const existingStr = await kv.get(searchKey);
   if (existingStr) {
-    try { 
-      const parsed = JSON.parse(existingStr); 
+    try {
+      const parsed = JSON.parse(existingStr);
       movieData = parsed;
       if (!movieData.id) movieData.id = movieId;
       if (movieData.is_series === undefined) movieData.is_series = state.is_series || false;
-    } catch(e) {}
+    } catch (e) { }
   }
 
   if (thumbId) {
@@ -519,13 +549,13 @@ async function finalizeSave(chatId, state, env, thumbId) {
   if (!exists) {
     const firstFileType = (state.files && state.files.length > 0) ? state.files[0].type : "video";
     const firstFileId = (state.files && state.files.length > 0) ? state.files[0].id : "grouped_files";
-    
+
     movieData.qualities.push({
       id: firstFileId,
       type: firstFileType,
       name: `${state.quality} ${state.format}`.trim(),
       caption: `🎬 ${state.quality} (${state.format})`.trim(),
-      q: gatewayId 
+      q: gatewayId
     });
   }
 
@@ -541,12 +571,12 @@ async function finalizeSave(chatId, state, env, thumbId) {
     }));
     await env.BLACK_BULL_CINEMA_FILEID.put(gatewayId, JSON.stringify(filesToSave));
   } else {
-    await kv.put(`idx_${movieData.id}`, searchKey); 
+    await kv.put(`idx_${movieData.id}`, searchKey);
   }
 
-  const sendMsg = async (msgText) => fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, { 
-    method: "POST", headers: {"Content-Type": "application/json"}, 
-    body: JSON.stringify({ chat_id: chatId, text: msgText, parse_mode: "HTML" }) 
+  const sendMsg = async (msgText) => fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text: msgText, parse_mode: "HTML" })
   });
 
   return sendMsg(`✅ <b>Successfully Saved to KV!</b>\n\n📌 <b>Key:</b> <code>${searchKey}</code>\n🎬 <b>Type:</b> ${movieData.is_series ? 'Series' : 'Movie'}\n🎬 <b>Total Qualities:</b> ${movieData.qualities.length}\n📦 <b>Grouped Files:</b> ${state.files.length}\n🖼 <b>Thumbnail:</b> ${thumbId ? "Yes" : "No"}\n🔗 <b>Gateway ID:</b> <code>${gatewayId}</code>\n\n<i>Forward another video to add more qualities or a new movie.</i>`);
@@ -568,9 +598,9 @@ async function handleStartCommand(chatId, payload, env, bots) {
     return;
   }
 
-  const fileKey = payload; 
+  const fileKey = payload;
   const fileDataStr = await env.BLACK_BULL_CINEMA_FILEID.get(fileKey);
-  
+
   if (!fileDataStr) {
     const tgApiUrl = `https://api.telegram.org/bot${bots[0]}/sendMessage`;
     await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "❌ <b>File not found or expired.</b>", parse_mode: "HTML" }) });
@@ -624,10 +654,10 @@ const LANGS = {
     series: "📺 Series",
     not_found: "❌ ඔයා හොයන '<b>{query}</b>' අපේ පද්ධතියේ නෑ.\n\nපහළ බට්න් එක ඔබලා Admin ට Request එකක් දාන්න. 👇",
     not_found_cat: "🚫 No results found for this category.",
-    not_here: "😮 මෙතන නෑනේ",
+    not_here: "මේ list එකේ නෑනේ🥲",
     change_lang: "🌐 Change Language",
     req_sent: "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!",
-    req_btn: "😮 මෙතන නෑනේ (Request Movie)",
+    req_btn: "මේ list එකේ නෑනේ🥲 (Request Movie)",
     force_sub: "❌ <b>ඔයා අපේ Main Channels දෙකටම Join වෙලා නෑ!</b>\n\nපහළ තියෙන Channels දෙකටම Join වෙලා ඇවිත් ආපහු '✅ I have Joined' කියන එක ඔබන්න.",
     joined_btn: "✅ I have Joined",
     welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ආයුබෝවන්! සාදරයෙන් පිළිගන්න.\nඔයාට අවශ්‍ය මූවීස් සහ සීරීස් පහසුවෙන් ලබා ගැනීමට අපගේ චැනල් එකේ ඇති ලින්ක් එකක් ක්ලික් කර මෙතැනට පැමිණෙන්න.\n\n🛡️ <b>Safe & Fast Delivery</b>",
@@ -705,14 +735,14 @@ async function getUserLang(userId, env) {
     const lang = await env.BLACK_BULL_CINEMA_LANG.get(`lang_${userId}`);
     if (lang && LANGS[lang]) return lang;
   }
-  return "si"; 
+  return "si";
 }
 
 async function getChannelLink(botToken, channelId, kv) {
   let link = null;
   if (kv) link = await kv.get(`invite_${channelId}`);
   if (link) return link;
-  
+
   try {
     const res = await fetch(`https://api.telegram.org/bot${botToken}/exportChatInviteLink?chat_id=${channelId}`);
     const data = await res.json();
@@ -720,7 +750,7 @@ async function getChannelLink(botToken, channelId, kv) {
       if (kv) await kv.put(`invite_${channelId}`, data.result);
       return data.result;
     }
-  } catch(e) {}
+  } catch (e) { }
   return "https://t.me/";
 }
 
@@ -734,7 +764,7 @@ async function checkForceSub(botToken, userId) {
         return false;
       }
     } catch (e) {
-      return false; 
+      return false;
     }
   }
   return true;
@@ -810,9 +840,9 @@ async function searchMovieInKV(query, kv) {
     if (dataString) {
       try {
         const parsed = JSON.parse(dataString);
-        parsed._key = keyObj.name; 
+        parsed._key = keyObj.name;
         results.push(parsed);
-      } catch (e) {}
+      } catch (e) { }
     }
   }
   return results;
@@ -829,9 +859,9 @@ async function sendSearchResults(bots, chatId, userId, replyToMsgId, query, resu
   if (filterType === "series") filtered = results.filter(r => r.is_series);
 
   const defaultImages = [
-    "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000", 
-    "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000",
-    "https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=1000"
+    "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp",
+    "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp",
+    "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp"
   ];
   const randomImg = defaultImages[Math.floor(Math.random() * defaultImages.length)];
   let text = T.hello.replace("{name}", firstName).replace("{query}", query);
@@ -852,7 +882,7 @@ async function sendSearchResults(bots, chatId, userId, replyToMsgId, query, resu
     keyboard.push([{ text: T.not_found_cat, callback_data: "none" }]);
   }
 
-  keyboard.push([{ text: T.not_here, callback_data: `req_${query.substring(0,40)}` }]);
+  keyboard.push([{ text: T.not_here, callback_data: `req_${query.substring(0, 40)}` }]);
   keyboard.push([{ text: T.change_lang, callback_data: "lang_menu" }]);
 
   const payload = {
@@ -879,10 +909,10 @@ async function sendSearchResults(bots, chatId, userId, replyToMsgId, query, resu
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      
+
       // If success or "message is not modified" (preventing 400 error on duplicate clicks)
       if (data.ok || (data.description && data.description.includes("modified"))) {
-        return; 
+        return;
       }
     } catch (e) {
       console.error("sendSearchResults API Error:", e);
@@ -932,12 +962,12 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
     }
 
     const defaultImages = [
-      "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000", 
-      "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000",
-      "https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=1000"
+      "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp",
+      "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp",
+      "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp"
     ];
     const randomImg = defaultImages[Math.floor(Math.random() * defaultImages.length)];
-    const movieThumb = movieData.thumb || randomImg; 
+    const movieThumb = movieData.thumb || randomImg;
 
     const payload = {
       chat_id: chatId,
@@ -965,7 +995,7 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
       const data = await res.json();
 
       if (data.ok || (data.description && data.description.includes("modified"))) {
-        break; 
+        break;
       }
     } catch (e) {
       console.error(`Fetch error for Bot ${currentIndex + 1}:`, e);
