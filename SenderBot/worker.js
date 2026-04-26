@@ -185,12 +185,24 @@ export default {
         if (data.startsWith("req_")) {
           const query = data.substring(4);
           const reqText = `සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉`;
-          const kb = { inline_keyboard: [[{ text: "💝 Send Request 💝", callback_data: `reqask_${query}` }]] };
+          const kb = { 
+            inline_keyboard: [
+              [{ text: "💝 Send Request 💝", callback_data: `reqask_${query}` }],
+              [{ text: "🔙 Back", callback_data: `search_${query}` }]
+            ] 
+          };
 
-          await fetch(`${TG_API}/editMessageCaption`, {
+          const res = await fetch(`${TG_API}/editMessageCaption`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: reqText, reply_markup: kb })
           });
+          const resData = await res.json();
+          if (resData.ok && ctx) {
+            ctx.waitUntil((async () => {
+              await new Promise(r => setTimeout(r, 20000));
+              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msgId }) }).catch(() => {});
+            })());
+          }
           return new Response("OK");
         }
 
@@ -208,10 +220,17 @@ export default {
             ]]
           };
 
-          await fetch(`${TG_API}/editMessageCaption`, {
+          const res = await fetch(`${TG_API}/editMessageCaption`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: askText, reply_markup: kb })
           });
+          const resData = await res.json();
+          if (resData.ok && ctx) {
+            ctx.waitUntil((async () => {
+              await new Promise(r => setTimeout(r, 20000));
+              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msgId }) }).catch(() => {});
+            })());
+          }
           return new Response("OK");
         }
 
@@ -550,19 +569,19 @@ export default {
 const LANGS = {
   si: {
     hello: "👋 හෙලෝ {name},\n\nබලන්න ඔයා හොයන '<b>{query}</b>' මෙතන තියනවද කියලා.. 👇\n\n📌 <i>ඔයා හොයන්නේ සීරීස් එකක් නම් 'Series' කියන බට්න් එක ඔබලා ඔයාට ඕනි සීරීස් එක තෝරන්න.</i>",
-    movies: "🎬 Movies",
-    series: "📺 Series",
+    movies: "🎬 චිත්‍රපට",
+    series: "📺 ටීවී සීරීස්",
     not_found: "❌ ඔයා හොයන '<b>{query}</b>' අපේ පද්ධතියේ නෑ.\n\nපහළ බට්න් එක ඔබලා Admin ට Request එකක් දාන්න. 👇",
-    not_found_cat: "🚫 No results found for this category.",
+    not_found_cat: "🚫 මෙම ගණයට අදාළ ප්‍රතිඵල හමු නොවීය.",
     not_here: "මේ list එකේ නෑනේ🥲",
-    change_lang: "🌐 Change Language",
+    change_lang: "🌐 භාෂාව වෙනස් කරන්න",
     req_sent: "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!",
     req_btn: "මේ list එකේ නෑනේ🥲 (Request Movie)",
-    force_sub: "❌ <b>ඔයා අපේ Main Channels දෙකටම Join වෙලා නෑ!</b>\n\nපහළ තියෙන Channels දෙකටම Join වෙලා ඇවිත් ආපහු '✅ I have Joined' කියන එක ඔබන්න.",
-    joined_btn: "✅ I have Joined",
-    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ආයුබෝවන්! සාදරයෙන් පිළිගන්න.\nඔයාට අවශ්‍ය මූවීස් සහ සීරීස් පහසුවෙන් ලබා ගැනීමට අපගේ චැනල් එකේ ඇති ලින්ක් එකක් ක්ලික් කර මෙතැනට පැමිණෙන්න.\n\n🛡️ <b>Safe & Fast Delivery</b>",
-    ch_btn: "📢 Official Channel",
-    gp_btn: "💬 Main Group"
+    force_sub: "❌ <b>ඔයා අපේ Main Channels දෙකටම Join වෙලා නෑ!</b>\n\nපහළ තියෙන Channels දෙකටම Join වෙලා ඇවිත් ආපහු '✅ මම සම්බන්ධ වුණා' කියන එක ඔබන්න.",
+    joined_btn: "✅ මම සම්බන්ධ වුණා",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ආයුබෝවන්! සාදරයෙන් පිළිගන්න.\nඔයාට අවශ්‍ය මූවීස් සහ සීරීස් පහසුවෙන් ලබා ගැනීමට අපගේ චැනල් එකේ ඇති ලින්ක් එකක් ක්ලික් කර මෙතැනට පැමිණෙන්න.\n\n🛡️ <b>ආරක්ෂිත සහ වේගවත් සේවාව</b>",
+    ch_btn: "📢 නිල චැනලය",
+    gp_btn: "💬 ප්‍රධාන ගෲප් එක"
   },
   en: {
     hello: "👋 Hello {name},\n\nCheck if the movie '<b>{query}</b>' you are looking for is here.. 👇\n\n📌 <i>If you are looking for a series, tap the 'Series' button to filter.</i>",
@@ -582,23 +601,23 @@ const LANGS = {
   },
   hi: {
     hello: "👋 नमस्ते {name},\n\nजांचें कि आप जिस फिल्म '<b>{query}</b>' की तलाश कर रहे हैं वह यहां है या नहीं.. 👇\n\n📌 <i>यदि आप कोई श्रृंखला ढूंढ रहे हैं, तो 'Series' बटन पर टैप करें।</i>",
-    movies: "🎬 Movies",
-    series: "📺 Series",
+    movies: "🎬 फिल्में",
+    series: "📺 श्रृंखला",
     not_found: "❌ फिल्म '<b>{query}</b>' हमारे सिस्टम में नहीं है।\n\nएडमिन से अनुरोध करने के लिए नीचे दिए गए बटन पर टैप करें। 👇",
     not_found_cat: "🚫 इस श्रेणी के लिए कोई परिणाम नहीं मिला।",
     not_here: "😮 यहाँ नहीं है",
-    change_lang: "🌐 Change Language",
+    change_lang: "🌐 भाषा बदलें",
     req_sent: "✅ आपका अनुरोध एडमिन को भेज दिया गया है! हम इसे जल्द ही जोड़ देंगे।",
-    req_btn: "😮 Request Movie",
-    force_sub: "❌ <b>आप हमारे मुख्य चैनल में शामिल नहीं हुए हैं!</b>\n\nकृपया नीचे दिए गए 2 चैनलों से जुड़ें और '✅ I have Joined' पर क्लिक करें।",
-    joined_btn: "✅ I have Joined",
-    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 नमस्ते! स्वागत है।\nअपनी मनपसंद फिल्में और सीरीज आसानी से पाने के लिए हमारे चैनल में दिए गए लिंक पर क्लिक करके यहां आएं।\n\n🛡️ <b>Safe & Fast Delivery</b>",
-    ch_btn: "📢 Official Channel",
-    gp_btn: "💬 Main Group"
+    req_btn: "😮 मूवी अनुरोध करें",
+    force_sub: "❌ <b>आप हमारे मुख्य चैनल में शामिल नहीं हुए हैं!</b>\n\nकृपया नीचे दिए गए 2 चैनलों से जुड़ें और '✅ मैं शामिल हो गया' पर क्लिक करें।",
+    joined_btn: "✅ मैं शामिल हो गया",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 नमस्ते! स्वागत है।\nअपनी मनपसंद फिल्में और सीरीज आसानी से पाने के लिए हमारे चैनल में दिए गए लिंक पर क्लिक करके यहां आएं।\n\n🛡️ <b>सुरक्षित और तेज़ डिलीवरी</b>",
+    ch_btn: "📢 आधिकारिक चैनल",
+    gp_btn: "💬 मुख्य समूह"
   },
   es: {
     hello: "👋 Hola {name},\n\nComprueba si la película '<b>{query}</b>' que buscas está aquí.. 👇\n\n📌 <i>Si buscas una serie, toca el botón 'Series'.</i>",
-    movies: "🎬 Movies",
+    movies: "🎬 Películas",
     series: "📺 Series",
     not_found: "❌ La película '<b>{query}</b>' no está en nuestro sistema.\n\nToca el botón de abajo para pedirla al administrador. 👇",
     not_found_cat: "🚫 No se encontraron resultados para esta categoría.",
@@ -606,7 +625,7 @@ const LANGS = {
     change_lang: "🌐 Cambiar idioma",
     req_sent: "✅ ¡Tu solicitud ha sido enviada al Administrador! La agregaremos pronto.",
     req_btn: "😮 Solicitar película",
-    force_sub: "❌ <b>¡No te has unido a nuestros canales principales!</b>\n\nÚnete a los 2 canales a continuación y haz clic en '✅ I have Joined'.",
+    force_sub: "❌ <b>¡No te has unido a nuestros canales principales!</b>\n\nÚnete a los 2 canales a continuación y haz clic en '✅ Me he unido'.",
     joined_btn: "✅ Me he unido",
     welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ¡Hola! Bienvenido.\nPara obtener fácilmente tus películas y series, haz clic en un enlace de nuestro canal para venir aquí.\n\n🛡️ <b>Entrega rápida y segura</b>",
     ch_btn: "📢 Canal oficial",
@@ -622,7 +641,7 @@ const LANGS = {
     change_lang: "🌐 மொழியை மாற்றவும்",
     req_sent: "✅ உங்கள் கோரிக்கை நிர்வாகிக்கு அனுப்பப்பட்டது! விரைவில் சேர்ப்போம்.",
     req_btn: "😮 திரைப்படத்தை கோருங்கள்",
-    force_sub: "❌ <b>எங்கள் முக்கிய சேனல்களில் நீங்கள் சேரவில்லை!</b>\n\nகீழே உள்ள 2 சேனல்களில் சேர்ந்து '✅ I have Joined' என்பதைக் கிளிக் செய்யவும்.",
+    force_sub: "❌ <b>எங்கள் முக்கிய சேனல்களில் நீங்கள் சேரவில்லை!</b>\n\nகீழே உள்ள 2 சேனல்களில் சேர்ந்து '✅ நான் சேர்ந்துவிட்டேன்' என்பதைக் கிளிக் செய்யவும்.",
     joined_btn: "✅ நான் சேர்ந்துவிட்டேன்",
     welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 வணக்கம்! வரவேற்கிறோம்.\nஉங்களுக்குத் தேவையான திரைப்படங்கள் மற்றும் தொடர்களை எளிதாகப் பெற, எங்கள் சேனலில் உள்ள இணைப்பைக் கிளிக் செய்து இங்கே வரவும்.\n\n🛡️ <b>பாதுகாப்பான மற்றும் வேகமான விநியோகம்</b>",
     ch_btn: "📢 அதிகாரப்பூர்வ சேனல்",

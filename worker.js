@@ -512,10 +512,26 @@ async function handleCallback(cb, env, ctx) {
       return;
     }
 
+    if (data.startsWith("search_")) {
+      await answerCallbackSafe(bots, cb.id);
+      const query = data.substring(7);
+      const results = await searchMovieInKV(query, kv);
+      if (results && results.length > 0) {
+        const userFirstName = cb.message.chat.first_name || "User";
+        await sendSearchResults(bots, chatId, cb.from.id, cb.message.reply_to_message?.message_id || msgId, query, results, "all", env, msgId, userFirstName);
+      }
+      return;
+    }
+
     if (data.startsWith("req_")) {
       const query = data.substring(4);
       const reqText = `සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉`;
-      const kb = { inline_keyboard: [[{ text: "💝 Send Request 💝", callback_data: `reqask_${query}` }]] };
+      const kb = { 
+        inline_keyboard: [
+          [{ text: "💝 Send Request 💝", callback_data: `reqask_${query}` }],
+          [{ text: "🔙 Back", callback_data: `search_${query}` }]
+        ] 
+      };
 
       await answerCallbackSafe(bots, cb.id);
 
@@ -534,7 +550,19 @@ async function handleCallback(cb, env, ctx) {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
-        if ((await res.json()).ok) break;
+        const resData = await res.json();
+        if (resData.ok) {
+          if (ctx) {
+            ctx.waitUntil((async () => {
+              await new Promise(r => setTimeout(r, 20000)); // 20 seconds
+              await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id: chatId, message_id: msgId })
+              }).catch(() => {});
+            })());
+          }
+          break;
+        }
       }
       return;
     }
@@ -569,7 +597,19 @@ async function handleCallback(cb, env, ctx) {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
-        if ((await res.json()).ok) break;
+        const resData = await res.json();
+        if (resData.ok) {
+          if (ctx) {
+            ctx.waitUntil((async () => {
+              await new Promise(r => setTimeout(r, 20000));
+              await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id: chatId, message_id: msgId })
+              }).catch(() => {});
+            })());
+          }
+          break;
+        }
       }
       return;
     }
