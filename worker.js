@@ -18,7 +18,7 @@ export default {
         ctx.waitUntil(handleCallback(payload.callback_query, env, ctx));
       }
       if (payload.message) {
-        ctx.waitUntil(handleMessage(payload.message, env));
+        ctx.waitUntil(handleMessage(payload.message, env, ctx));
       }
 
       return new Response("OK", { status: 200 });
@@ -33,7 +33,7 @@ export default {
 // MANAGER CONTROLLER LOGIC
 // ══════════════════════════════════════════════
 
-async function handleMessage(msg, env) {
+async function handleMessage(msg, env, ctx) {
   const text = msg.text ? msg.text.trim() : "";
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
@@ -117,10 +117,22 @@ async function handleMessage(msg, env) {
     const T = LANGS[langCode] || LANGS.si;
     const notFoundText = T.not_found.replace("{query}", text);
     const kb = { inline_keyboard: [[{ text: T.req_btn, callback_data: `req_${text.substring(0, 40)}` }]] };
-    await fetch(`https://api.telegram.org/bot${selectedToken}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${selectedToken}/sendMessage`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text: notFoundText, parse_mode: "HTML", reply_markup: kb })
     });
+
+    const data = await res.json();
+    if (data.ok && ctx) {
+      const nfMsgId = data.result.message_id;
+      ctx.waitUntil((async () => {
+        await new Promise(r => setTimeout(r, 25000)); // 25 seconds
+        await fetch(`https://api.telegram.org/bot${selectedToken}/deleteMessage`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, message_id: nfMsgId })
+        }).catch(() => {});
+      })());
+    }
   }
 }
 
