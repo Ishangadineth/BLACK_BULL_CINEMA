@@ -354,18 +354,38 @@ async function handleCallback(cb, env, ctx) {
       if (env[`BOT_TOKEN_${i}`]) bots.push(env[`BOT_TOKEN_${i}`]);
     }
 
-    const editMsg = async (msgText) => fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/editMessageText`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: msgText, parse_mode: "HTML" })
-    });
+    const editMsg = async (msgText, keyboard = null) => {
+      const body = { chat_id: chatId, message_id: msgId, text: msgText, parse_mode: "HTML" };
+      if (keyboard) body.reply_markup = { inline_keyboard: keyboard };
+      return fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/editMessageText`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+    };
 
     if (state.step === "ask_type") {
       if (data === "type_movie" || data === "type_series") {
         state.is_series = data === "type_series";
-        state.step = "ask_details";
+        state.step = "ask_quality_btn";
         await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
-        await editMsg(`✅ <b>Type selected:</b> ${state.is_series ? '📺 Series' : '🎬 Movie'}\n\n1️⃣ Enter <b>Name, Year, Rating</b>\n<i>(Comma separated. e.g: Avatar, 2009, 7.9)</i>`);
+        
+        const qList = ["144p", "240p", "360p", "480p", "720p", "1k", "2k", "4k", "8k"];
+        const keyboard = [];
+        for (let i = 0; i < qList.length; i += 3) {
+          keyboard.push(qList.slice(i, i + 3).map(q => ({ text: q, callback_data: `qbtn_${q}` })));
+        }
+
+        await editMsg(`✅ <b>Type selected:</b> ${state.is_series ? '📺 Series' : '🎬 Movie'}\n\n3️⃣ Select the <b>Quality Category</b> for this upload:`, keyboard);
       }
+      return;
+    }
+
+    if (data.startsWith("qbtn_")) {
+      const qSelected = data.split("_")[1];
+      state.quality_btn = qSelected;
+      state.step = "ask_details";
+      await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
+      await editMsg(`✅ <b>Quality Category:</b> ${qSelected}\n\n1️⃣ Enter <b>Name, Year, Rating</b>\n<i>(Comma separated. e.g: Avatar, 2009, 7.9)</i>`);
       return;
     }
 
@@ -454,16 +474,69 @@ async function handleCallback(cb, env, ctx) {
       if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
       if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
 
-      if (!searchKey) {
-        const directCheck = await kv.get(movieId);
-        if (directCheck) searchKey = movieId;
-      }
-
       if (searchKey) {
         const existingStr = await kv.get(searchKey);
         if (existingStr) {
-          const movieData = JSON.parse(existingStr);
-          await sendMovieReplyWithRetry(bots, 0, chatId, cb.message.reply_to_message?.message_id || msgId, movieData, env, msgId, originalQuery);
+          const movie = JSON.parse(existingStr);
+          const langCode = await getUserLang(cb.from.id, env);
+          const T = LANGS[langCode] || LANGS.si;
+
+          const availableCats = [...new Set(movie.qualities.map(q => q.cat || "Other"))].sort();
+          const keyboard = [];
+          for (const cat of availableCats) {
+            keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId}|${cat}|${originalQuery}` }]);
+          }
+          keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery}` }]);
+
+          const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\n\n⭐️ <b>Rating:</b> ${movie.rating}/10\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
+          const randomImg = "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp";
+          const thumb = movie.thumb || randomImg;
+
+          for (const token of bots) {
+            const payload = {
+              chat_id: chatId,
+              message_id: msgId,
+              media: { type: "photo", media: thumb, caption: detailText, parse_mode: "HTML" },
+              reply_markup: { inline_keyboard: keyboard }
+            };
+            const res = await fetch(`https://api.telegram.org/bot${token}/editMessageMedia`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            });
+            if ((await res.json()).ok) break;
+          }
+        }
+      }
+      return;
+    }
+
+    if (data.startsWith("qview_")) {
+      await answerCallbackSafe(bots, cb.id);
+      const [movieId, cat, originalQuery] = data.substring(6).split("|");
+
+      let searchKey = null;
+      if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
+      if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
+
+      if (searchKey) {
+        const dataStr = await kv.get(searchKey);
+        const movie = JSON.parse(dataStr);
+        const filteredQualities = movie.qualities.filter(q => (q.cat || "Other") === cat);
+        
+        const keyboard = [];
+        for (const q of filteredQualities) {
+          keyboard.push([{ text: `📥 Download (${q.name})`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}` }]);
+        }
+        keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${originalQuery}` }]);
+
+        const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\nQuality: <b>${cat}</b>\n\nමෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇`;
+
+        for (const token of bots) {
+          const res = await fetch(`https://api.telegram.org/bot${token}/editMessageCaption`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } })
+          });
+          if ((await res.json()).ok) break;
         }
       }
       return;
@@ -660,7 +733,8 @@ async function finalizeSave(chatId, state, env, thumbId) {
       type: firstFileType,
       name: `${state.quality} ${state.format}`.trim(),
       caption: `🎬 ${state.quality} (${state.format})`.trim(),
-      q: gatewayId
+      q: gatewayId,
+      cat: state.quality_btn || "Other"
     });
   }
 

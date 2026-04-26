@@ -141,15 +141,70 @@ export default {
 
           const kv = env.BLACK_BULL_CINEMA;
           if (!kv) throw new Error("Database KV not bound to Sender Bot!");
+          
           let searchKey = null;
           if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
           if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
+
           if (searchKey) {
             const existingStr = await kv.get(searchKey);
             if (existingStr) {
-              const movieData = JSON.parse(existingStr);
-              await sendMovieReplyForSender(TG_API, BOT_TOKEN, chatId, cb.message.reply_to_message?.message_id || msgId, movieData, env, msgId, originalQuery);
+              const movie = JSON.parse(existingStr);
+              const langCode = await getUserLang(userId, env);
+              const T = LANGS[langCode] || LANGS.si;
+
+              const availableCats = [...new Set(movie.qualities.map(q => q.cat || "Other"))].sort();
+              const keyboard = [];
+              for (const cat of availableCats) {
+                keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId}|${cat}|${originalQuery}` }]);
+              }
+              keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery}` }]);
+
+              const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\n\n⭐️ <b>Rating:</b> ${movie.rating}/10\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
+              const randomImg = "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp";
+              const thumb = movie.thumb || randomImg;
+
+              const payload = {
+                chat_id: chatId,
+                message_id: msgId,
+                media: { type: "photo", media: thumb, caption: detailText, parse_mode: "HTML" },
+                reply_markup: { inline_keyboard: keyboard }
+              };
+              await fetch(`${TG_API}/editMessageMedia`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+              });
             }
+          }
+          return new Response("OK");
+        }
+
+        if (data.startsWith("qview_")) {
+          await answerCallback(TG_API, cb.id);
+          const [movieId, cat, originalQuery] = data.substring(6).split("|");
+
+          const kv = env.BLACK_BULL_CINEMA;
+          let searchKey = null;
+          if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
+          if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
+
+          if (searchKey) {
+            const dataStr = await kv.get(searchKey);
+            const movie = JSON.parse(dataStr);
+            const filteredQualities = movie.qualities.filter(q => (q.cat || "Other") === cat);
+            
+            const keyboard = [];
+            for (const q of filteredQualities) {
+              keyboard.push([{ text: `📥 Download (${q.name})`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}` }]);
+            }
+            keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${originalQuery}` }]);
+
+            const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\nQuality: <b>${cat}</b>\n\nමෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇`;
+
+            await fetch(`${TG_API}/editMessageCaption`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } })
+            });
           }
           return new Response("OK");
         }
@@ -185,11 +240,11 @@ export default {
         if (data.startsWith("req_")) {
           const query = data.substring(4);
           const reqText = `සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉`;
-          const kb = { 
+          const kb = {
             inline_keyboard: [
               [{ text: "💝 Send Request 💝", callback_data: `reqask_${query}` }],
               [{ text: "🔙 Back", callback_data: `search_${query}` }]
-            ] 
+            ]
           };
 
           const res = await fetch(`${TG_API}/editMessageCaption`, {
@@ -200,7 +255,7 @@ export default {
           if (resData.ok && ctx) {
             ctx.waitUntil((async () => {
               await new Promise(r => setTimeout(r, 20000));
-              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msgId }) }).catch(() => {});
+              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msgId }) }).catch(() => { });
             })());
           }
           return new Response("OK");
@@ -216,7 +271,7 @@ export default {
           const kb = {
             inline_keyboard: [[
               { text: "🎬 ෆිල්ම් එකක්", url: `https://t.me/${reqBotUser}?start=m_${safeParam}` },
-              { text: "📺 සිරීஸ் එකක්", url: `https://t.me/${reqBotUser}?start=s_${safeParam}` }
+              { text: "📺 සිරී එකක්", url: `https://t.me/${reqBotUser}?start=s_${safeParam}` }
             ]]
           };
 
@@ -228,7 +283,7 @@ export default {
           if (resData.ok && ctx) {
             ctx.waitUntil((async () => {
               await new Promise(r => setTimeout(r, 20000));
-              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msgId }) }).catch(() => {});
+              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msgId }) }).catch(() => { });
             })());
           }
           return new Response("OK");
@@ -542,7 +597,7 @@ export default {
               const results = await searchMovieInKV(text, kv);
               const langCode = await getUserLang(userId, env);
               const T = LANGS[langCode] || LANGS.si;
-              
+
               if (results && results.length > 0) {
                 await sendSearchResults(TG_API, BOT_TOKEN, chatId, userId, msgId, text, results, "all", env, null, firstName);
               } else {
