@@ -72,10 +72,22 @@ async function handleMessage(msg, env, ctx) {
         [{ text: "🇪🇸 Spanish", callback_data: "setlang_es" }, { text: "🇮🇳 Tamil", callback_data: "setlang_ta" }]
       ]
     };
-    return fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text: "🌐 <b>Select your preferred language:</b>", parse_mode: "HTML", reply_markup: kb })
     });
+    const data = await res.json();
+    if (data.ok && ctx) {
+      const lid = data.result.message_id;
+      ctx.waitUntil((async () => {
+        await new Promise(r => setTimeout(r, 25000));
+        await fetch(`https://api.telegram.org/bot${bots[0]}/deleteMessage`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, message_id: lid })
+        }).catch(() => {});
+      })());
+    }
+    return;
   }
 
   if (text === "/list") {
@@ -94,10 +106,21 @@ async function handleMessage(msg, env, ctx) {
       movieKeys.map((k, i) => `${i + 1}. <code>${k.name}</code>`).join("\n") +
       `\n\n<i>Tap a movie name to copy it, then paste it to search!</i>`;
 
-    await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text: listText, parse_mode: "HTML" })
     });
+    const data = await res.json();
+    if (data.ok && ctx) {
+      const lid = data.result.message_id;
+      ctx.waitUntil((async () => {
+        await new Promise(r => setTimeout(r, 25000));
+        await fetch(`https://api.telegram.org/bot${bots[0]}/deleteMessage`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, message_id: lid })
+        }).catch(() => {});
+      })());
+    }
     return;
   }
 
@@ -391,7 +414,7 @@ async function handleCallback(cb, env, ctx) {
       }
 
       const autoDelete = async () => {
-        await new Promise(r => setTimeout(r, 10000));
+        await new Promise(r => setTimeout(r, 25000)); // Increased to 25s as requested
         for (const token of bots) {
           const res = await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
             method: "POST", headers: { "Content-Type": "application/json" },
