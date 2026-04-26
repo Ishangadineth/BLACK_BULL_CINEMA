@@ -278,13 +278,12 @@ async function handleAdminLogic(msg, env) {
     state.rating = parts[2] || "N/A";
     state.step = "ask_quality";
     await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
-    return sendMsg("2️⃣ Enter <b>Quality, Format</b>\n<i>(Comma separated. e.g: 1080p, WEB)</i>");
+    return sendMsg("2️⃣ Enter <b>Format/Type</b>\n<i>(e.g: WEB-DL, Bluray, HDRip)</i>");
   }
 
   if (state.step === "ask_quality" && text) {
-    const parts = text.split(",").map(s => s.trim());
-    state.quality = parts[0] || "Unknown";
-    state.format = parts[1] || "";
+    state.quality = state.quality_btn || "Unknown";
+    state.format = text.trim();
 
     state.step = "ask_thumbnail";
     await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
@@ -523,15 +522,16 @@ async function handleCallback(cb, env, ctx) {
         const movie = JSON.parse(dataStr);
         const filteredQualities = movie.qualities.filter(q => (q.cat || "Other") === cat);
         
-        const keyboard = [];
-        for (const q of filteredQualities) {
-          keyboard.push([{ text: `📥 Download (${q.name})`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}` }]);
-        }
-        keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${originalQuery}` }]);
-
         const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\nQuality: <b>${cat}</b>\n\nමෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇`;
 
         for (const token of bots) {
+          const botUser = await getBotUsername(token);
+          const keyboard = [];
+          for (const q of filteredQualities) {
+            keyboard.push([{ text: `📥 Download (${q.name})`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
+          }
+          keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${originalQuery}` }]);
+
           const res = await fetch(`https://api.telegram.org/bot${token}/editMessageCaption`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } })

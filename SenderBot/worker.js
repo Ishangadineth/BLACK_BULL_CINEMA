@@ -193,9 +193,17 @@ export default {
             const movie = JSON.parse(dataStr);
             const filteredQualities = movie.qualities.filter(q => (q.cat || "Other") === cat);
             
+            // Fetch bot username for the link
+            let botUser = "Unknown_Bot";
+            try {
+              const bRes = await fetch(`${TG_API}/getMe`);
+              const bData = await bRes.json();
+              if (bData.ok) botUser = bData.result.username;
+            } catch (e) {}
+
             const keyboard = [];
             for (const q of filteredQualities) {
-              keyboard.push([{ text: `📥 Download (${q.name})`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}` }]);
+              keyboard.push([{ text: `📥 Download (${q.name})`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
             }
             keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${originalQuery}` }]);
 
