@@ -197,7 +197,7 @@ export default {
         if (data.startsWith("reqask_")) {
           const query = data.substring(7);
           const askText = `හරි දැන් ඔයා ඕනි ෆිල්ම් එකක්ද ටීවී සිරීස් එකක්ද කියලා තෝරන්නකෝ.. 🤔`;
-          const reqBotUser = env.REQ_BOT_USERNAME || "BLACKBULLCinemaReqBot";
+          const reqBotUser = env.REQ_BOT_USERNAME || "BLACKBULL_MODERATOR_BOT";
 
           const safeParam = query.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 40);
 
@@ -603,30 +603,30 @@ const LANGS = {
     not_found: "❌ La película '<b>{query}</b>' no está en nuestro sistema.\n\nToca el botón de abajo para pedirla al administrador. 👇",
     not_found_cat: "🚫 No se encontraron resultados para esta categoría.",
     not_here: "😮 No está aquí",
-    change_lang: "🌐 Change Language",
+    change_lang: "🌐 Cambiar idioma",
     req_sent: "✅ ¡Tu solicitud ha sido enviada al Administrador! La agregaremos pronto.",
-    req_btn: "😮 Request Movie",
+    req_btn: "😮 Solicitar película",
     force_sub: "❌ <b>¡No te has unido a nuestros canales principales!</b>\n\nÚnete a los 2 canales a continuación y haz clic en '✅ I have Joined'.",
-    joined_btn: "✅ I have Joined",
-    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ¡Hola! Bienvenido.\nPara obtener fácilmente tus películas y series, haz clic en un enlace de nuestro canal para venir aquí.\n\n🛡️ <b>Safe & Fast Delivery</b>",
-    ch_btn: "📢 Official Channel",
-    gp_btn: "💬 Main Group"
+    joined_btn: "✅ Me he unido",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ¡Hola! Bienvenido.\nPara obtener fácilmente tus películas y series, haz clic en un enlace de nuestro canal para venir aquí.\n\n🛡️ <b>Entrega rápida y segura</b>",
+    ch_btn: "📢 Canal oficial",
+    gp_btn: "💬 Grupo principal"
   },
   ta: {
     hello: "👋 வணக்கம் {name},\n\nநீங்கள் தேடும் '<b>{query}</b>' திரைப்படம் இங்கே உள்ளதா என்று பார்க்கவும்.. 👇\n\n📌 <i>நீங்கள் ஒரு தொடரை தேடுகிறீர்கள் என்றால், 'Series' பொத்தானை அழுத்தவும்.</i>",
-    movies: "🎬 Movies",
-    series: "📺 Series",
+    movies: "🎬 திரைப்படங்கள்",
+    series: "📺 தொடர்கள்",
     not_found: "❌ '<b>{query}</b>' திரைப்படம் எங்கள் கணினியில் இல்லை.\n\nநிர்வாகியிடம் கோர கீழேயுள்ள பொத்தானை அழுத்தவும். 👇",
     not_found_cat: "🚫 இந்த வகைக்கு முடிவுகள் எதுவும் கிடைக்கவில்லை.",
     not_here: "😮 இங்கே இல்லை",
-    change_lang: "🌐 Change Language",
+    change_lang: "🌐 மொழியை மாற்றவும்",
     req_sent: "✅ உங்கள் கோரிக்கை நிர்வாகிக்கு அனுப்பப்பட்டது! விரைவில் சேர்ப்போம்.",
-    req_btn: "😮 Request Movie",
+    req_btn: "😮 திரைப்படத்தை கோருங்கள்",
     force_sub: "❌ <b>எங்கள் முக்கிய சேனல்களில் நீங்கள் சேரவில்லை!</b>\n\nகீழே உள்ள 2 சேனல்களில் சேர்ந்து '✅ I have Joined' என்பதைக் கிளிக் செய்யவும்.",
-    joined_btn: "✅ I have Joined",
-    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 வணக்கம்! வரவேற்கிறோம்.\nஉங்களுக்குத் தேவையான திரைப்படங்கள் மற்றும் தொடர்களை எளிதாகப் பெற, எங்கள் சேனலில் உள்ள இணைப்பைக் கிளிக் செய்து இங்கே வரவும்.\n\n🛡️ <b>Safe & Fast Delivery</b>",
-    ch_btn: "📢 Official Channel",
-    gp_btn: "💬 Main Group"
+    joined_btn: "✅ நான் சேர்ந்துவிட்டேன்",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 வணக்கம்! வரவேற்கிறோம்.\nஉங்களுக்குத் தேவையான திரைப்படங்கள் மற்றும் தொடர்களை எளிதாகப் பெற, எங்கள் சேனலில் உள்ள இணைப்பைக் கிளிக் செய்து இங்கே வரவும்.\n\n🛡️ <b>பாதுகாப்பான மற்றும் வேகமான விநியோகம்</b>",
+    ch_btn: "📢 அதிகாரப்பூர்வ சேனல்",
+    gp_btn: "💬 முக்கிய குழு"
   }
 };
 

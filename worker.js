@@ -542,7 +542,7 @@ async function handleCallback(cb, env, ctx) {
     if (data.startsWith("reqask_")) {
       const query = data.substring(7);
       const askText = `හරි දැන් ඔයා ඕනි ෆිල්ම් එකක්ද ටීවී සිරීස් එකක්ද කියලා තෝරන්නකෝ.. 🤔`;
-      const reqBotUser = env.REQ_BOT_USERNAME || "BLACKBULLCinemaReqBot";
+      const reqBotUser = env.REQ_BOT_USERNAME || "BLACKBULL_MODERATOR_BOT";
 
       const safeParam = query.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 40);
 
