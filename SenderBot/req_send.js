@@ -56,6 +56,21 @@ export default {
 
         // ── 2. URL & Emoji Detection (Groups Only) ──
         if (msg.chat.type === "group" || msg.chat.type === "supergroup") {
+          // Check if sender is an admin
+          let isAdmin = false;
+          if (env.ADMIN_ID && userId.toString() === env.ADMIN_ID.toString()) {
+            isAdmin = true;
+          } else {
+            // Check via Telegram API
+            const memberRes = await fetch(`${TG_API}/getChatMember?chat_id=${chatId}&user_id=${userId}`);
+            const memberData = await memberRes.json();
+            if (memberData.ok && (memberData.result.status === "creator" || memberData.result.status === "administrator")) {
+              isAdmin = true;
+            }
+          }
+
+          if (isAdmin) return new Response("OK"); // Admins can do anything
+
           const text = msg.text || msg.caption || "";
           
           const hasUrl = /https?:\/\/[^\s]+|t\.me\/[^\s]+/.test(text);
