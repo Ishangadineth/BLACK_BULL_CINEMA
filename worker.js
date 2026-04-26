@@ -520,9 +520,9 @@ async function handleCallback(cb, env, ctx) {
       await answerCallbackSafe(bots, cb.id);
 
       for (const token of bots) {
-        const res = await fetch(`https://api.telegram.org/bot${token}/editMessageCaption`, {
+        const res = await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: reqText, reply_markup: kb })
+          body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: reqText, parse_mode: "HTML", reply_markup: kb })
         });
         if ((await res.json()).ok) break;
       }
@@ -532,23 +532,23 @@ async function handleCallback(cb, env, ctx) {
     if (data.startsWith("reqask_")) {
       const query = data.substring(7);
       const askText = `හරි දැන් ඔයා ඕනි ෆිල්ම් එකක්ද ටීවී සිරීස් එකක්ද කියලා තෝරන්නකෝ.. 🤔`;
-      const reqBotUser = env.REQ_BOT_USERNAME || "YOUR_REQ_BOT_USERNAME";
+      const reqBotUser = env.REQ_BOT_USERNAME || "BLACKBULLCinemaReqBot";
 
       const safeParam = query.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 40);
 
       const kb = {
         inline_keyboard: [[
-          { text: "ෆිල්ම් එකක්", url: `https://t.me/${reqBotUser}?start=m_${safeParam}` },
-          { text: "සිරීස් එකක්", url: `https://t.me/${reqBotUser}?start=s_${safeParam}` }
+          { text: "🎬 ෆිල්ම් එකක්", url: `https://t.me/${reqBotUser}?start=m_${safeParam}` },
+          { text: "📺 සිරීස් එකක්", url: `https://t.me/${reqBotUser}?start=s_${safeParam}` }
         ]]
       };
 
       await answerCallbackSafe(bots, cb.id);
 
       for (const token of bots) {
-        const res = await fetch(`https://api.telegram.org/bot${token}/editMessageCaption`, {
+        const res = await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: askText, reply_markup: kb })
+          body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: askText, parse_mode: "HTML", reply_markup: kb })
         });
         if ((await res.json()).ok) break;
       }
