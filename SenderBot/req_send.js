@@ -83,12 +83,26 @@ export default {
               })
             });
 
-            // Send restriction notice
+            // Send restriction notice and auto-delete it after 20s
             const restrictMsg = `🚫 <b><a href="tg://user?id=${userId}">${firstName}</a> has been restricted for 30 minutes due to violation of group rules.</b>\n\nViolation/s committed: <b>${violation}</b>`;
-            await fetch(`${TG_API}/sendMessage`, {
+            const noticeRes = await fetch(`${TG_API}/sendMessage`, {
               method: "POST", headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ chat_id: chatId, text: restrictMsg, parse_mode: "HTML" })
             });
+            const noticeData = await noticeRes.json();
+            
+            if (noticeData.ok) {
+              const noticeMsgId = noticeData.result.message_id;
+              ctx.waitUntil((async () => {
+                try {
+                  await new Promise(r => setTimeout(r, 20000)); // 20 seconds
+                  await fetch(`${TG_API}/deleteMessage`, {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ chat_id: chatId, message_id: noticeMsgId })
+                  });
+                } catch (e) {}
+              })());
+            }
 
             return new Response("OK");
           }
