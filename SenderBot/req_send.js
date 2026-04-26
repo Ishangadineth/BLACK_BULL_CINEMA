@@ -25,8 +25,31 @@ const LOCALES = {
     done_msg: "✅ <b>The item you requested has been uploaded!</b>\n\n🎬 <code>{query}</code> is now available in the group. Go and download it now. 😉",
     home_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 Welcome! Glad to have you here.\nTo get your favorite movies and series, click a link from our channel to come here.\n\n🛡️ <b>Safe & Fast Delivery</b>",
     btn_no: "📅 NO"
+  },
+  hi: {
+    welcome: "कृपया उस <b>{query}</b> {type} का पूरा नाम प्रदान करें जिसे आप अनुरोध कर रहे हैं। 🔍",
+    ask_year: "क्या आप <b>{name}</b> की रिलीज का वर्ष जानते हैं? यदि हाँ, तो इसे टाइप करें; अन्यथा, 'NO' बटन दबाएं। 📅",
+    req_sent: "✅ <b>आपका अनुरोध एडमिन को भेज दिया गया है!</b>\n\nहम जल्द ही ग्रुप में <code>{query}</code> जोड़ देंगे। 😉",
+    done_msg: "✅ <b>वह फिल्म जिसे आपने अनुरोध किया था, अपलोड कर दी गई है!</b>\n\n🎬 <code>{query}</code> अब ग्रुप में उपलब्ध है। 😉",
+    home_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 स्वागत है!",
+    btn_no: "📅 NO"
+  },
+  es: {
+    welcome: "Proporcione el nombre completo de <b>{query}</b> {type} que está solicitando. 🔍",
+    ask_year: "¿Conoces el año de estreno de <b>{name}</b>? Si es así, escríbelo; de lo contrario, pulsa 'NO'. 📅",
+    req_sent: "✅ <b>¡Tu solicitud ha sido enviada al administrador!</b>\n\nPronto agregaremos <code>{query}</code> al grupo. 😉",
+    done_msg: "✅ <b>¡El elemento que solicitaste ha sido subido!</b>\n\n🎬 <code>{query}</code> ya está disponible. 😉",
+    home_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ¡Bienvenido!",
+    btn_no: "📅 NO"
+  },
+  ta: {
+    welcome: "நீங்கள் கோரும் <b>{query}</b> {type} இன் முழுப் பெயரை வழங்கவும். 🔍",
+    ask_year: "<b>{name}</b> இன் வெளியீட்டு ஆண்டு உங்களுக்குத் தெரியுமா? ஆம் எனில், தட்டச்சு செய்யவும்; இல்லையெனில் 'NO' பொத்தானைத் தட்டவும். 📅",
+    req_sent: "✅ <b>உங்கள் கோரிக்கை நிர்வாகிக்கு அனுப்பப்பட்டது!</b>\n\nவிரைவில் <code>{query}</code> ஐ குழுவில் சேர்ப்போம். 😉",
+    done_msg: "✅ <b>நீங்கள் கோரியது பதிவேற்றப்பட்டது!</b>\n\n🎬 <code>{query}</code> இப்போது குழுவில் கிடைக்கிறது. 😉",
+    home_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 வரவேற்கிறோம்!",
+    btn_no: "📅 NO"
   }
-  // Add hi, es, ta if needed
 };
 
 export default {
@@ -108,6 +131,18 @@ export default {
         const userId = msg.from?.id;
         const firstName = msg.from?.first_name || "User";
         const text = msg.text || "";
+
+        // Helper to auto-delete bot messages if triggered by a command
+        const autoDeleteBotMsg = (mid) => {
+          if (text.startsWith("/") && ctx) {
+            ctx.waitUntil((async () => {
+              await new Promise(r => setTimeout(r, 10000)); // 10 seconds
+              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: mid }) }).catch(() => {});
+              // Also delete user's command
+              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msgId }) }).catch(() => {});
+            })());
+          }
+        };
 
         // ── 0. Save User ID ──
         if (KV && userId) {
@@ -204,6 +239,7 @@ export default {
             const res = await fetch(`${TG_API}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: userId, text: welcomeMsg, parse_mode: "HTML" }) });
             const data = await res.json();
             if (data.ok) {
+              autoDeleteBotMsg(data.result.message_id);
               await KV.put(`state_${userId}`, JSON.stringify({ step: "waiting_full_name", original_query: query, type: type, bot_msg_id: data.result.message_id }));
             }
             return new Response("OK");
@@ -227,8 +263,10 @@ export default {
              return new Response("OK");
           }
 
-          if (!text.startsWith("/")) {
-            await fetch(`${TG_API}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: userId, text: T.home_msg, parse_mode: "HTML" }) });
+          if (text.startsWith("/")) {
+            const res = await fetch(`${TG_API}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: userId, text: T.home_msg, parse_mode: "HTML" }) });
+            const data = await res.json();
+            if (data.ok) autoDeleteBotMsg(data.result.message_id);
           }
         }
       }
