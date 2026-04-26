@@ -124,7 +124,18 @@ async function handleMessage(msg, env, ctx) {
     return;
   }
 
-  if (text.startsWith("/")) return;
+  if (text.startsWith("/") && msg.chat.type !== "private") {
+    if (!text.startsWith("/lang") && !text.startsWith("/list")) return;
+  }
+
+  // IGNORE VIOLATIONS (URLs, Emojis, Locations) in Groups so we don't reply with "Not Found"
+  if (msg.chat.type === "group" || msg.chat.type === "supergroup") {
+    const hasUrl = /https?:\/\/[^\s]+|t\.me\/[^\s]+/.test(text);
+    const hasEmoji = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/.test(text);
+    const hasLocation = !!msg.location;
+
+    if (hasUrl || hasEmoji || hasLocation) return; 
+  }
 
   const botIndex = msgId % bots.length;
   const selectedToken = bots[botIndex];
