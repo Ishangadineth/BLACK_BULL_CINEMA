@@ -132,18 +132,6 @@ export default {
         const firstName = msg.from?.first_name || "User";
         const text = msg.text || "";
 
-        // Helper to auto-delete bot messages if triggered by a command
-        const autoDeleteBotMsg = (mid) => {
-          if (text.startsWith("/") && ctx) {
-            ctx.waitUntil((async () => {
-              await new Promise(r => setTimeout(r, 10000)); // 10 seconds
-              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: mid }) }).catch(() => {});
-              // Also delete user's command
-              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msgId }) }).catch(() => {});
-            })());
-          }
-        };
-
         // ── 0. Save User ID ──
         if (KV && userId) {
           await KV.put(`user_${userId}`, JSON.stringify({ name: firstName, date: new Date().toISOString() }));
@@ -173,6 +161,14 @@ export default {
 
         // ── 2. Group Moderation ──
         if (msg.chat.type === "group" || msg.chat.type === "supergroup") {
+          // ── 1.1 Auto-delete any command in group after 10s ──
+          if (text.startsWith("/") && ctx) {
+            ctx.waitUntil((async () => {
+              await new Promise(r => setTimeout(r, 10000));
+              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msgId }) }).catch(() => {});
+            })());
+          }
+
           // Welcome Msg
           if (msg.new_chat_members) {
             const welcomeText = `👋 <b>සාදරයෙන් පිළිගන්න ${firstName}!</b>\n\n🌟 <b>BLACK BULL CINEMA</b> Group එකට ඔබව සාදරයෙන් පිළිගන්නවා.\n\n⚠️ කරුණාකර ගෲප් එකේ නීති රීති පිළිපදින්න. (ලින්ක් හෝ ඉමෝජි දැමීම තහනම්)`;
@@ -239,7 +235,6 @@ export default {
             const res = await fetch(`${TG_API}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: userId, text: welcomeMsg, parse_mode: "HTML" }) });
             const data = await res.json();
             if (data.ok) {
-              autoDeleteBotMsg(data.result.message_id);
               await KV.put(`state_${userId}`, JSON.stringify({ step: "waiting_full_name", original_query: query, type: type, bot_msg_id: data.result.message_id }));
             }
             return new Response("OK");
@@ -264,9 +259,7 @@ export default {
           }
 
           if (text.startsWith("/")) {
-            const res = await fetch(`${TG_API}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: userId, text: T.home_msg, parse_mode: "HTML" }) });
-            const data = await res.json();
-            if (data.ok) autoDeleteBotMsg(data.result.message_id);
+            await fetch(`${TG_API}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: userId, text: T.home_msg, parse_mode: "HTML" }) });
           }
         }
       }
