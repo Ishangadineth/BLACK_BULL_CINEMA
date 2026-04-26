@@ -112,17 +112,17 @@ export default {
         if (msg.from && msg.from.is_bot) {
           const text = msg.text || msg.caption || "";
           const notFoundKeywords = [
-            "අපේ පද්ධතියේ නෑ",
-            "is not in our system",
-            "हमारे सिस्टम में नहीं है",
+            "පද්ධතියේ නෑ",
+            "not in our system",
+            "सिस्टम में नहीं है",
             "no está en nuestro sistema",
-            "எங்கள் கணினியில் இல்லை"
+            "கணினியில் இல்லை"
           ];
 
           if (notFoundKeywords.some(kw => text.includes(kw))) {
             ctx.waitUntil((async () => {
               try {
-                await new Promise(r => setTimeout(r, 28000)); // 28 seconds
+                await new Promise(r => setTimeout(r, 22000)); // 22 seconds
                 await fetch(`${TG_API}/deleteMessage`, {
                   method: "POST", headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ chat_id: chatId, message_id: msgId })
