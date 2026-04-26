@@ -517,8 +517,29 @@ export default {
             await DB.put(STATE_KEY(chatId), JSON.stringify({ fileId, origName, sourceMsgId: msg.message_id, url: dlUrl, lastBotMsg: (await res.json()).result?.message_id, newName: null, waiting: null }));
           }
         } else if (isPrivate && !isAdmin) {
-          // If a non-admin sends anything else (e.g. sticker, text) in private chat
-          await sendWelcomeMessage(TG_API, BOT_TOKEN, chatId, userId, env);
+          if (text && !text.startsWith("/")) {
+            const kv = env.BLACK_BULL_CINEMA;
+            if (kv) {
+              const results = await searchMovieInKV(text, kv);
+              const langCode = await getUserLang(userId, env);
+              const T = LANGS[langCode] || LANGS.si;
+              
+              if (results && results.length > 0) {
+                await sendSearchResults(TG_API, BOT_TOKEN, chatId, userId, msgId, text, results, "all", env, null, firstName);
+              } else {
+                const notFoundText = T.not_found.replace("{query}", text);
+                const kb = { inline_keyboard: [[{ text: T.req_btn, callback_data: `req_${text.substring(0, 40)}` }]] };
+                await fetch(`${TG_API}/sendMessage`, {
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ chat_id: chatId, text: notFoundText, parse_mode: "HTML", reply_markup: kb, reply_to_message_id: msgId })
+                });
+              }
+            } else {
+              await sendWelcomeMessage(TG_API, BOT_TOKEN, chatId, userId, env);
+            }
+          } else {
+            await sendWelcomeMessage(TG_API, BOT_TOKEN, chatId, userId, env);
+          }
         }
       }
     } catch (err) { console.error("Worker error:", err.message, err.stack); }
