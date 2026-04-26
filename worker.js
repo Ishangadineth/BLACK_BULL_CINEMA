@@ -519,10 +519,20 @@ async function handleCallback(cb, env, ctx) {
 
       await answerCallbackSafe(bots, cb.id);
 
+      const isPhoto = !!(cb.message.photo || cb.message.video || cb.message.document);
+
       for (const token of bots) {
-        const res = await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+        let apiUrl = `https://api.telegram.org/bot${token}/editMessageText`;
+        let payload = { chat_id: chatId, message_id: msgId, text: reqText, parse_mode: "HTML", reply_markup: kb };
+        
+        if (isPhoto) {
+          apiUrl = `https://api.telegram.org/bot${token}/editMessageCaption`;
+          payload = { chat_id: chatId, message_id: msgId, caption: reqText, parse_mode: "HTML", reply_markup: kb };
+        }
+
+        const res = await fetch(apiUrl, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: reqText, parse_mode: "HTML", reply_markup: kb })
+          body: JSON.stringify(payload)
         });
         if ((await res.json()).ok) break;
       }
@@ -544,11 +554,20 @@ async function handleCallback(cb, env, ctx) {
       };
 
       await answerCallbackSafe(bots, cb.id);
+      const isPhoto = !!(cb.message.photo || cb.message.video || cb.message.document);
 
       for (const token of bots) {
-        const res = await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+        let apiUrl = `https://api.telegram.org/bot${token}/editMessageText`;
+        let payload = { chat_id: chatId, message_id: msgId, text: askText, parse_mode: "HTML", reply_markup: kb };
+        
+        if (isPhoto) {
+          apiUrl = `https://api.telegram.org/bot${token}/editMessageCaption`;
+          payload = { chat_id: chatId, message_id: msgId, caption: askText, parse_mode: "HTML", reply_markup: kb };
+        }
+
+        const res = await fetch(apiUrl, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: askText, parse_mode: "HTML", reply_markup: kb })
+          body: JSON.stringify(payload)
         });
         if ((await res.json()).ok) break;
       }
