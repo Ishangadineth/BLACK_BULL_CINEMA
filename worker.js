@@ -470,9 +470,9 @@ async function handleCallback(cb, env, ctx) {
       const query = data.substring(4);
       const reqText = `සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉`;
       const kb = { inline_keyboard: [[{ text: "💝 Send Request 💝", callback_data: `reqask_${query}` }]] };
-      
+
       await answerCallbackSafe(bots, cb.id);
-      
+
       for (const token of bots) {
         const res = await fetch(`https://api.telegram.org/bot${token}/editMessageCaption`, {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -486,19 +486,19 @@ async function handleCallback(cb, env, ctx) {
     if (data.startsWith("reqask_")) {
       const query = data.substring(7);
       const askText = `හරි දැන් ඔයා ඕනි ෆිල්ම් එකක්ද ටීවී සිරීස් එකක්ද කියලා තෝරන්නකෝ.. 🤔`;
-      const reqBotUser = env.REQ_BOT_USERNAME || "YOUR_REQ_BOT_USERNAME"; 
-      
+      const reqBotUser = env.REQ_BOT_USERNAME || "YOUR_REQ_BOT_USERNAME";
+
       const safeParam = query.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 40);
-      
-      const kb = { 
+
+      const kb = {
         inline_keyboard: [[
           { text: "ෆිල්ම් එකක්", url: `https://t.me/${reqBotUser}?start=m_${safeParam}` },
           { text: "සිරීස් එකක්", url: `https://t.me/${reqBotUser}?start=s_${safeParam}` }
-        ]] 
+        ]]
       };
-      
+
       await answerCallbackSafe(bots, cb.id);
-      
+
       for (const token of bots) {
         const res = await fetch(`https://api.telegram.org/bot${token}/editMessageCaption`, {
           method: "POST", headers: { "Content-Type": "application/json" },

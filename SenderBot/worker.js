@@ -18,7 +18,7 @@ export default {
 
     const TG_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
     const DB = env.THUMB_KV || { get: async () => null, put: async () => { }, delete: async () => { } };
-    
+
     // Create a unique prefix for this bot based on its Token
     const botId = BOT_TOKEN.split(":")[0];
     const Q_RUNNING = `queue_running_${botId}`;
@@ -51,11 +51,11 @@ export default {
         if (data.startsWith("check_sub_")) {
           const payloadStr = data.substring(10);
           const isSubbed = await checkForceSub(BOT_TOKEN, userId);
-          
+
           if (isSubbed) {
             // Delete the force join message
             await deleteMessage(TG_API, chatId, msgId);
-            
+
             // Re-trigger the start command logic
             const kvFiles = env.BLACK_BULL_CINEMA_FILEID;
             if (kvFiles) {
@@ -91,7 +91,7 @@ export default {
             ]
           };
           await fetch(`${TG_API}/editMessageCaption`, {
-            method: "POST", headers: {"Content-Type": "application/json"},
+            method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: "🌐 <b>Select your preferred language:</b>", parse_mode: "HTML", reply_markup: kb })
           });
 
@@ -110,7 +110,7 @@ export default {
             if (langCode === "si") await env.BLACK_BULL_CINEMA_LANG.delete(`lang_${userId}`);
             else await env.BLACK_BULL_CINEMA_LANG.put(`lang_${userId}`, langCode);
           }
-          
+
           let alertMsg = "✅ Language Updated!";
           if (langCode === "si") alertMsg = "✅ ඔබේ භාශාව සිංහල ලෙස වෙනස් විය!";
           else if (langCode === "en") alertMsg = "✅ Your language was changed to English!";
@@ -119,17 +119,17 @@ export default {
           else if (langCode === "ta") alertMsg = "✅ உங்கள் மொழி மாற்றப்பட்டுள்ளது!";
 
           await fetch(`${TG_API}/answerCallbackQuery`, {
-            method: "POST", headers: {"Content-Type": "application/json"},
+            method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ callback_query_id: cb.id, text: alertMsg, show_alert: true })
           });
-          
+
           await deleteMessage(TG_API, chatId, msgId);
           return new Response("OK");
         }
 
         if (data.startsWith("view_")) {
           await answerCallback(TG_API, cb.id);
-          
+
           const payloadStr = data.substring(5);
           const splitIndex = payloadStr.indexOf("|");
           let movieId = payloadStr;
@@ -138,7 +138,7 @@ export default {
             movieId = payloadStr.substring(0, splitIndex);
             originalQuery = payloadStr.substring(splitIndex + 1);
           }
-          
+
           const kv = env.BLACK_BULL_CINEMA;
           if (!kv) throw new Error("Database KV not bound to Sender Bot!");
           let searchKey = null;
@@ -186,7 +186,7 @@ export default {
           const query = data.substring(4);
           const reqText = `සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉`;
           const kb = { inline_keyboard: [[{ text: "💝 Send Request 💝", callback_data: `reqask_${query}` }]] };
-          
+
           await fetch(`${TG_API}/editMessageCaption`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: reqText, reply_markup: kb })
@@ -197,17 +197,17 @@ export default {
         if (data.startsWith("reqask_")) {
           const query = data.substring(7);
           const askText = `හරි දැන් ඔයා ඕනි ෆිල්ම් එකක්ද ටීවී සිරීස් එකක්ද කියලා තෝරන්නකෝ.. 🤔`;
-          const reqBotUser = env.REQ_BOT_USERNAME || "YOUR_REQ_BOT_USERNAME"; 
-          
+          const reqBotUser = env.REQ_BOT_USERNAME || "YOUR_REQ_BOT_USERNAME";
+
           const safeParam = query.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 40);
-          
-          const kb = { 
+
+          const kb = {
             inline_keyboard: [[
               { text: "ෆිල්ම් එකක්", url: `https://t.me/${reqBotUser}?start=m_${safeParam}` },
               { text: "සිරීස් එකක්", url: `https://t.me/${reqBotUser}?start=s_${safeParam}` }
-            ]] 
+            ]]
           };
-          
+
           await fetch(`${TG_API}/editMessageCaption`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: askText, reply_markup: kb })
@@ -302,7 +302,7 @@ export default {
             target_file_id: state.fileId,
             source_msg_id: state.sourceMsgId || null,
             new_name: state.newName || state.origName || null, // FIX APPLIED HERE
-            thumb_file_id: thumbId, 
+            thumb_file_id: thumbId,
             bot_token: BOT_TOKEN
           }, chatId, request.url.split("?")[0], TG_API, GITHUB_REPO, GITHUB_TOKEN, Q_RUNNING, Q_TASKS);
         }
@@ -411,12 +411,12 @@ export default {
         if (text.startsWith("/start")) {
           const payloadCmd = text.split(" ")[1];
           if (payloadCmd) {
-            
+
             // FORCE SUB CHECK
             const isSubbed = await checkForceSub(BOT_TOKEN, userId);
             if (!isSubbed) {
-               await sendForceSubMessage(TG_API, BOT_TOKEN, chatId, userId, payloadCmd, env);
-               return new Response("OK");
+              await sendForceSubMessage(TG_API, BOT_TOKEN, chatId, userId, payloadCmd, env);
+              return new Response("OK");
             }
 
             const kvFiles = env.BLACK_BULL_CINEMA_FILEID;
@@ -456,9 +456,9 @@ export default {
           let running = await DB.get(Q_RUNNING);
           let msgStr = `📊 <b>Queue Status:</b>\n\n`;
           if (running) {
-             msgStr += `▶️ <b>1 task currently processing</b>\n`;
+            msgStr += `▶️ <b>1 task currently processing</b>\n`;
           } else {
-             msgStr += `⏸ <b>Idle</b>\n`;
+            msgStr += `⏸ <b>Idle</b>\n`;
           }
           msgStr += `⏳ <b>${queue.length} tasks waiting</b>`;
           await tgSend(TG_API, chatId, msgStr, []);
@@ -621,7 +621,7 @@ async function getChannelLink(botToken, channelId, kv) {
   let link = null;
   if (kv) link = await kv.get(`invite_${channelId}`);
   if (link) return link;
-  
+
   try {
     const res = await fetch(`https://api.telegram.org/bot${botToken}/exportChatInviteLink?chat_id=${channelId}`);
     const data = await res.json();
@@ -629,7 +629,7 @@ async function getChannelLink(botToken, channelId, kv) {
       if (kv) await kv.put(`invite_${channelId}`, data.result);
       return data.result;
     }
-  } catch(e) {}
+  } catch (e) { }
   return "https://t.me/";
 }
 
@@ -699,7 +699,7 @@ async function searchMovieInKV(query, kv) {
     if (keyObj.name.startsWith("admin_") || keyObj.name.startsWith("config_") || keyObj.name.startsWith("idx_")) continue;
     const dataString = await kv.get(keyObj.name);
     if (dataString) {
-      try { results.push(JSON.parse(dataString)); } catch (e) {}
+      try { results.push(JSON.parse(dataString)); } catch (e) { }
     }
   }
   return results;
@@ -714,7 +714,7 @@ async function sendSearchResults(api, botToken, chatId, userId, replyToMsgId, qu
   if (filterType === "series") filtered = results.filter(r => r.is_series);
 
   const defaultImages = [
-    "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000", 
+    "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000",
     "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000",
     "https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=1000"
   ];
@@ -732,7 +732,7 @@ async function sendSearchResults(api, botToken, chatId, userId, replyToMsgId, qu
     keyboard.push([{ text: `🎬 ${r.title} (${r.year})`, callback_data: `view_${r.id}|${safeQuery}` }]);
   }
   if (filtered.length === 0) keyboard.push([{ text: T.not_found_cat, callback_data: "none" }]);
-  keyboard.push([{ text: T.not_here, callback_data: `req_${query.substring(0,40)}` }]);
+  keyboard.push([{ text: T.not_here, callback_data: `req_${query.substring(0, 40)}` }]);
   keyboard.push([{ text: T.change_lang, callback_data: "lang_menu" }]);
 
   const payload = { chat_id: chatId, reply_markup: { inline_keyboard: keyboard } };
@@ -768,7 +768,7 @@ async function sendMovieReplyForSender(api, botToken, chatId, replyToMsgId, movi
       const res = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
       const data = await res.json();
       if (data.ok && data.result) return data.result.username;
-    } catch(e){}
+    } catch (e) { }
     return "UnknownBot";
   })();
 
@@ -840,7 +840,7 @@ async function sendMovieFile(api, chatId, fileId, type = "video", caption = "", 
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(requestPayload)
   });
-  
+
   if (!response.ok) {
     const data = await response.json();
     await fetch(`${api}/sendMessage`, {
@@ -879,7 +879,7 @@ async function enqueueTask(DB, taskPayload, chatId, requestUrl, TG_API, GITHUB_R
   let queue = JSON.parse(await DB.get(Q_TASKS) || "[]");
   queue.push({ task: taskPayload, worker_url: requestUrl, chat_id: chatId, repo: GITHUB_REPO, token: GITHUB_TOKEN });
   await DB.put(Q_TASKS, JSON.stringify(queue));
-  
+
   await processQueue(DB, TG_API, GITHUB_REPO, GITHUB_TOKEN, Q_RUNNING, Q_TASKS);
 }
 
@@ -908,7 +908,7 @@ async function processQueue(DB, TG_API, defaultRepo, defaultToken, Q_RUNNING, Q_
 
   // Ensure worker_url is passed to payload
   nextItem.task.worker_url = nextItem.worker_url;
-  
+
   const repo = nextItem.repo || defaultRepo;
   const token = nextItem.token || defaultToken;
   await dispatchGitHub(repo, token, nextItem.task);
