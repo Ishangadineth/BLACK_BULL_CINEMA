@@ -351,7 +351,7 @@ async function handleCallback(cb, env, ctx) {
         const requesterId = parts[parts.length - 1];
         if (requesterId !== String(cb.from.id)) {
           // Notify the user but do NOT return; let them proceed as requested
-          await answerCallbackSafe(bots, cb.id, "මේ ඔයා ඉල්ලපු එක නෙවේ🧐", false);
+          await answerCallbackSafe(bots, cb.id, "මේ ඔයා ඉල්ලපු එක නෙවේ🧐", true); // Updated to show_alert: true
         }
       }
     }
@@ -561,7 +561,8 @@ async function handleCallback(cb, env, ctx) {
 
     if (data.startsWith("search_")) {
       await answerCallbackSafe(bots, cb.id);
-      const query = data.substring(7);
+      const parts = data.substring(7).split("|");
+      const query = parts[0];
       const results = await searchMovieInKV(query, kv);
       if (results && results.length > 0) {
         const userFirstName = cb.message.chat.first_name || "User";
@@ -574,11 +575,11 @@ async function handleCallback(cb, env, ctx) {
       await answerCallbackSafe(bots, cb.id);
       const parts = data.split("_");
       const fType = parts[1];
-      const query = parts.slice(2).join("_");
-      const results = await searchMovieInKV(query, kv);
+      const queryPart = parts.slice(2).join("_").split("|")[0];
+      const results = await searchMovieInKV(queryPart, kv);
       if (results && results.length > 0) {
         const userFirstName = cb.message.chat.first_name || "User";
-        await sendSearchResults(bots, chatId, cb.from.id, cb.message.reply_to_message?.message_id || msgId, query, results, fType, env, msgId, userFirstName);
+        await sendSearchResults(bots, chatId, cb.from.id, cb.message.reply_to_message?.message_id || msgId, queryPart, results, fType, env, msgId, userFirstName);
       }
       return;
     }

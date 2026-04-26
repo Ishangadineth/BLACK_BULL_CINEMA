@@ -55,7 +55,7 @@ export default {
             if (requesterId !== String(cb.from.id)) {
               await fetch(`${TG_API}/answerCallbackQuery`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ callback_query_id: cb.id, text: "මේ ඔයා ඉල්ලපු එක නෙවේ🧐", show_alert: false })
+                body: JSON.stringify({ callback_query_id: cb.id, text: "මේ ඔයා ඉල්ලපු එක නෙවේ🧐", show_alert: true })
               });
             }
           }
@@ -237,7 +237,8 @@ export default {
           await answerCallback(TG_API, cb.id);
           const kv = env.BLACK_BULL_CINEMA;
           if (!kv) throw new Error("Database KV not bound to Sender Bot!");
-          const query = data.substring(7);
+          const parts = data.substring(7).split("|");
+          const query = parts[0];
           const results = await searchMovieInKV(query, kv);
           if (results && results.length > 0) {
             const userFirstName = cb.message.chat.first_name || "User";
@@ -252,11 +253,11 @@ export default {
           if (!kv) throw new Error("Database KV not bound to Sender Bot!");
           const parts = data.split("_");
           const fType = parts[1];
-          const query = parts.slice(2).join("_");
-          const results = await searchMovieInKV(query, kv);
+          const queryPart = parts.slice(2).join("_").split("|")[0];
+          const results = await searchMovieInKV(queryPart, kv);
           if (results && results.length > 0) {
             const userFirstName = cb.message.chat.first_name || "User";
-            await sendSearchResults(TG_API, BOT_TOKEN, chatId, userId, cb.message.reply_to_message?.message_id || msgId, query, results, fType, env, msgId, userFirstName);
+            await sendSearchResults(TG_API, BOT_TOKEN, chatId, userId, cb.message.reply_to_message?.message_id || msgId, queryPart, results, fType, env, msgId, userFirstName);
           }
           return new Response("OK");
         }
