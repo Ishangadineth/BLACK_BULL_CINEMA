@@ -216,11 +216,12 @@ async function handleAdminLogic(msg, env) {
 
   let fileId = null;
   let fileType = "file";
+  let fileSize = 0;
 
-  if (msg.video) { fileId = msg.video.file_id; fileType = "video"; }
-  else if (msg.document) { fileId = msg.document.file_id; fileType = "document"; }
-  else if (msg.audio) { fileId = msg.audio.file_id; fileType = "audio"; }
-  else if (msg.photo) { fileId = msg.photo[msg.photo.length - 1].file_id; fileType = "photo"; }
+  if (msg.video) { fileId = msg.video.file_id; fileType = "video"; fileSize = msg.video.file_size; }
+  else if (msg.document) { fileId = msg.document.file_id; fileType = "document"; fileSize = msg.document.file_size; }
+  else if (msg.audio) { fileId = msg.audio.file_id; fileType = "audio"; fileSize = msg.audio.file_size; }
+  else if (msg.photo) { fileId = msg.photo[msg.photo.length - 1].file_id; fileType = "photo"; fileSize = msg.photo[msg.photo.length - 1].file_size; }
 
   if (fileId) {
     if (!state.step || state.step === "accumulate") {
@@ -241,7 +242,7 @@ async function handleAdminLogic(msg, env) {
 
       const channelMsgId = copyData.result.message_id;
 
-      await kv.put(`admin_file_${chatId}_${msg.message_id}`, JSON.stringify({ id: channelMsgId, type: "channel_msg" }));
+      await kv.put(`admin_file_${chatId}_${msg.message_id}`, JSON.stringify({ id: channelMsgId, type: "channel_msg", size: fileSize }));
 
       return sendMsg(`✅ <b>File Saved to Database!</b> <i>(Msg ID: ${channelMsgId})</i>\n\n<i>Forward more files to group them together, or type </i>/done<i> when you have sent all files for this set.</i>\n\n<i>Type /cancel to abort.</i>`);
     }
@@ -342,6 +343,18 @@ async function handleCallback(cb, env, ctx) {
     const chatId = cb.message.chat.id;
     const data = cb.data;
     const msgId = cb.message.message_id;
+
+    // Check if the user who clicked is the same as the one who requested (for group chats)
+    if (cb.message.chat.type !== "private") {
+      const parts = data.split("|");
+      if (parts.length >= 3) {
+        const requesterId = parts[parts.length - 1];
+        if (requesterId !== String(cb.from.id)) {
+          // Notify the user but do NOT return; let them proceed as requested
+          await answerCallbackSafe(bots, cb.id, "මේ ඔයා ඉල්ලපු එක නෙවේ🧐", false);
+        }
+      }
+    }
 
     const kv = env.BLACK_BULL_CINEMA;
     let state = {};
@@ -483,9 +496,9 @@ async function handleCallback(cb, env, ctx) {
           const availableCats = [...new Set(movie.qualities.map(q => q.cat || "Other"))].sort();
           const keyboard = [];
           for (const cat of availableCats) {
-            keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId}|${cat}|${originalQuery}` }]);
+            keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId}|${cat}|${originalQuery}|${cb.from.id}` }]);
           }
-          keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery}` }]);
+          keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery}|${cb.from.id}` }]);
 
           const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\n\n⭐️ <b>Rating:</b> ${movie.rating}/10\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
           const randomImg = "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp";
@@ -528,9 +541,13 @@ async function handleCallback(cb, env, ctx) {
           const botUser = await getBotUsername(token);
           const keyboard = [];
           for (const q of filteredQualities) {
-            keyboard.push([{ text: `📥 Download (${q.name})`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
+            let sizeText = "";
+            if (!movie.is_series && q.size) {
+              sizeText = ` - ${formatSize(q.size)}`;
+            }
+            keyboard.push([{ text: `📥 Download (${q.name})${sizeText}`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
           }
-          keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${originalQuery}` }]);
+          keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${originalQuery}|${cb.from.id}` }]);
 
           const res = await fetch(`https://api.telegram.org/bot${token}/editMessageCaption`, {
             method: "POST", headers: { "Content-Type": "application/json" },
@@ -727,6 +744,7 @@ async function finalizeSave(chatId, state, env, thumbId) {
   if (!exists) {
     const firstFileType = (state.files && state.files.length > 0) ? state.files[0].type : "video";
     const firstFileId = (state.files && state.files.length > 0) ? state.files[0].id : "grouped_files";
+    const firstFileSize = (state.files && state.files.length > 0) ? state.files[0].size : 0;
 
     movieData.qualities.push({
       id: firstFileId,
@@ -734,7 +752,8 @@ async function finalizeSave(chatId, state, env, thumbId) {
       name: `${state.quality} ${state.format}`.trim(),
       caption: `🎬 ${state.quality} (${state.format})`.trim(),
       q: gatewayId,
-      cat: state.quality_btn || "Other"
+      cat: state.quality_btn || "Other",
+      size: firstFileSize
     });
   }
 
@@ -990,6 +1009,18 @@ async function sendWelcomeMessage(botToken, chatId, userId, env) {
 }
 
 // Memory Cache implemented for Bot Username fetching
+function formatSize(bytes) {
+  if (!bytes || bytes === 0) return "";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex++;
+  }
+  return `${size.toFixed(1)}${units[unitIndex]}`;
+}
+
 async function getBotUsername(token) {
   if (botUsernamesCache[token]) return botUsernamesCache[token];
   try {
@@ -1047,22 +1078,23 @@ async function sendSearchResults(bots, chatId, userId, replyToMsgId, query, resu
 
   const keyboard = [];
   keyboard.push([
-    { text: filterType === "movies" ? `✅ ${T.movies}` : T.movies, callback_data: `filter_movies_${query}` },
-    { text: filterType === "series" ? `✅ ${T.series}` : T.series, callback_data: `filter_series_${query}` }
+    { text: filterType === "movies" ? `✅ ${T.movies}` : T.movies, callback_data: `filter_movies_${query}|${userId}` },
+    { text: filterType === "series" ? `✅ ${T.series}` : T.series, callback_data: `filter_series_${query}|${userId}` }
   ]);
 
   for (const r of filtered) {
-    const safeQuery = query.substring(0, 30);
-    const mId = r.id ? r.id : r._key.substring(0, 25);
-    keyboard.push([{ text: `🎬 ${r.title} (${r.year})`, callback_data: `view_${mId}|${safeQuery}` }]);
+    const safeQuery = query.substring(0, 20);
+    const mId = r.id ? r.id : r._key.substring(0, 20);
+    const icon = r.is_series ? "📺" : "🎬";
+    keyboard.push([{ text: `${icon} ${r.title} (${r.year})`, callback_data: `view_${mId}|${safeQuery}|${userId}` }]);
   }
 
   if (filtered.length === 0) {
     keyboard.push([{ text: T.not_found_cat, callback_data: "none" }]);
   }
 
-  keyboard.push([{ text: T.not_here, callback_data: `req_${query.substring(0, 40)}` }]);
-  keyboard.push([{ text: T.change_lang, callback_data: "lang_menu" }]);
+  keyboard.push([{ text: T.not_here, callback_data: `req_${query.substring(0, 40)}|${userId}` }]);
+  keyboard.push([{ text: T.change_lang, callback_data: `lang_menu|${userId}` }]);
 
   const payload = {
     chat_id: chatId,

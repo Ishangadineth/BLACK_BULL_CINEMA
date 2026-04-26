@@ -47,7 +47,19 @@ export default {
         const msgId = cb.message.message_id;
         const isPrivate = cb.message.chat.type === "private";
 
-        // CHECK SUB CALLBACK ADDED HERE
+        // Check if the user who clicked is the same as the one who requested (for group chats)
+        if (!isPrivate) {
+          const parts = data.split("|");
+          if (parts.length >= 3) {
+            const requesterId = parts[parts.length - 1];
+            if (requesterId !== String(cb.from.id)) {
+              await fetch(`${TG_API}/answerCallbackQuery`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ callback_query_id: cb.id, text: "මේ ඔයා ඉල්ලපු එක නෙවේ🧐", show_alert: false })
+              });
+            }
+          }
+        }
         if (data.startsWith("check_sub_")) {
           const payloadStr = data.substring(10);
           const isSubbed = await checkForceSub(BOT_TOKEN, userId);
@@ -156,9 +168,9 @@ export default {
               const availableCats = [...new Set(movie.qualities.map(q => q.cat || "Other"))].sort();
               const keyboard = [];
               for (const cat of availableCats) {
-                keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId}|${cat}|${originalQuery}` }]);
+                keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId}|${cat}|${originalQuery}|${cb.from.id}` }]);
               }
-              keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery}` }]);
+              keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery}|${cb.from.id}` }]);
 
               const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\n\n⭐️ <b>Rating:</b> ${movie.rating}/10\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
               const randomImg = "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp";
@@ -203,9 +215,13 @@ export default {
 
             const keyboard = [];
             for (const q of filteredQualities) {
-              keyboard.push([{ text: `📥 Download (${q.name})`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
+              let sizeText = "";
+              if (!movie.is_series && q.size) {
+                sizeText = ` - ${formatSize(q.size)}`;
+              }
+              keyboard.push([{ text: `📥 Download (${q.name})${sizeText}`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
             }
-            keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${originalQuery}` }]);
+            keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${originalQuery}|${cb.from.id}` }]);
 
             const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\nQuality: <b>${cat}</b>\n\nමෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇`;
 
@@ -856,6 +872,18 @@ async function sendSearchResults(api, botToken, chatId, userId, replyToMsgId, qu
   if (!data.ok) throw new Error(data.description);
 }
 
+function formatSize(bytes) {
+  if (!bytes || bytes === 0) return "";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex++;
+  }
+  return `${size.toFixed(1)}${units[unitIndex]}`;
+}
+
 async function sendMovieReplyForSender(api, botToken, chatId, replyToMsgId, movieData, env, editMsgId = null, originalQuery = null) {
   const text = `🎬 <b>${movieData.is_series ? 'Series' : 'Movie'} Found!</b>\n\n📌 <b>Title:</b> ${movieData.title}\n📅 <b>Year:</b> ${movieData.year}\n⭐ <b>Rating:</b> ${movieData.rating}\n\n<i>Select quality to download below:</i>`;
 
@@ -892,7 +920,7 @@ async function sendMovieReplyForSender(api, botToken, chatId, replyToMsgId, movi
   }
 
   if (originalQuery) {
-    keyboard.push([{ text: "⬅️ Back to Search", callback_data: `search_${originalQuery}` }]);
+    keyboard.push([{ text: "⬅️ Back to Search", callback_data: `search_${originalQuery}|${userId}` }]);
   }
 
   const defaultImages = ["https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000", "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000", "https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=1000"];
