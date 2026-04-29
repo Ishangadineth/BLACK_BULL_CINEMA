@@ -151,6 +151,11 @@ async function handleMessage(msg, env, ctx) {
 
   const results = await searchMovieInKV(text, env.BLACK_BULL_CINEMA);
 
+  // Async log search to KV for Dashboard Analytics
+  if (ctx && ctx.waitUntil) {
+    ctx.waitUntil(logSearchStats(env.BLACK_BULL_CINEMA, text, results && results.length > 0));
+  }
+
   if (results && results.length > 0) {
     const userFirstName = msg.from?.first_name || msg.chat?.first_name || "User";
     // Passing the array of bots to allow retry fallback if needed later, though for new msgs selectedToken is fine
@@ -1227,5 +1232,44 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
     } catch (e) {
       console.error(`Fetch error for Bot ${currentIndex + 1}:`, e);
     }
+  }
+}
+
+// ══════════════════════════════════════════════
+// ANALYTICS & STATS LOGGING
+// ══════════════════════════════════════════════
+async function logSearchStats(kv, query, found) {
+  if (!kv) return;
+  try {
+    // 1. Total Searches
+    let total = await kv.get("stats_total_searches");
+    total = total ? parseInt(total) + 1 : 1;
+    await kv.put("stats_total_searches", total.toString());
+
+    // 2. Daily Chart Data
+    const dateStr = new Date().toISOString().split('T')[0];
+    const chartKey = `stats_chart_${dateStr}`;
+    let daily = await kv.get(chartKey);
+    daily = daily ? parseInt(daily) + 1 : 1;
+    await kv.put(chartKey, daily.toString());
+
+    // 3. Missing Searches
+    if (!found && query) {
+      const qLower = query.toLowerCase().trim().substring(0, 30);
+      let missingStr = await kv.get("stats_missing_searches");
+      let missing = missingStr ? JSON.parse(missingStr) : {};
+      
+      missing[qLower] = (missing[qLower] || 0) + 1;
+      
+      // Keep only top 50 to avoid KV size limit
+      const entries = Object.entries(missing).sort((a,b) => b[1] - a[1]);
+      if (entries.length > 50) {
+        missing = Object.fromEntries(entries.slice(0, 50));
+      }
+      
+      await kv.put("stats_missing_searches", JSON.stringify(missing));
+    }
+  } catch (e) {
+    console.error("Stats log error:", e);
   }
 }

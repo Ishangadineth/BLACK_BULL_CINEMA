@@ -71,21 +71,38 @@ async function getStat(kv, key) {
     return val ? parseInt(val) : 0;
 }
 
-// Helper to get top missing searches (Mocked for now, will connect to real KV data next)
+// Helper to get top missing searches from KV
 async function getTopMissing(kv) {
-    // TODO: Read from actual missing searches KV
-    return [
-        { query: "Deadpool 3", count: 45 },
-        { query: "Avatar 3", count: 21 },
-        { query: "Spider-Man 4", count: 18 }
-    ];
+    const missingStr = await kv.get("stats_missing_searches");
+    if (!missingStr) return [];
+    
+    try {
+        const missing = JSON.parse(missingStr);
+        // Convert to array of {query, count}
+        return Object.entries(missing).map(([query, count]) => ({ query, count }));
+    } catch (e) {
+        return [];
+    }
 }
 
-// Helper to generate chart data (Mocked for now, will connect to real KV data next)
+// Helper to generate chart data from KV
 async function getChartData(kv) {
-    // TODO: Read from actual daily views KV
-    return {
-        labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-        values: [120, 190, 300, 250, 280, 400, 350]
-    };
+    // Generate the last 7 days keys
+    const labels = [];
+    const values = [];
+    
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0]; // YYYY-MM-DD
+        
+        // Format label as 'Mon 29'
+        const label = d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
+        labels.push(label);
+        
+        const count = await getStat(kv, `stats_chart_${dateStr}`);
+        values.push(count);
+    }
+    
+    return { labels, values };
 }
