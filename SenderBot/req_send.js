@@ -147,13 +147,34 @@ export default {
             });
           }
 
-          const newKb = { inline_keyboard: [[{ text: "✅ COMPLETE", callback_data: "done" }]] };
+          const adminName = cb.from.first_name;
+          const newKb = { inline_keyboard: [[{ text: `✅ Completed by: ${adminName}`, callback_data: `req_alert_${msgId}` }]] };
           await fetch(`${TG_API}/editMessageReplyMarkup`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: newKb })
           });
 
-          await answerCallback(TG_API, cb.id, "✅ User Notified!");
+          // Save details for the alert modal
+          const alertData = {
+            adminName: adminName,
+            date: new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' }),
+            query: query
+          };
+          await KV.put(`req_alert_${msgId}`, JSON.stringify(alertData), { expirationTtl: 2592000 }); // Store for 30 days
+
+          await answerCallback(TG_API, cb.id, "✅ User Notified & Request Marked as Complete!");
+        }
+
+        else if (data.startsWith("req_alert_")) {
+          const alertId = data.replace("req_alert_", "");
+          const alertStr = await KV.get(`req_alert_${alertId}`);
+          if (alertStr) {
+             const ad = JSON.parse(alertStr);
+             const alertText = `✅ Request Completed!\n\n👤 Completed by: ${ad.adminName}\n🕒 Date: ${ad.date}\n🎬 Movie: ${ad.query}`;
+             await answerCallback(TG_API, cb.id, alertText, true);
+          } else {
+             await answerCallback(TG_API, cb.id, "✅ This request is already completed.", true);
+          }
         }
 
         return new Response("OK");
