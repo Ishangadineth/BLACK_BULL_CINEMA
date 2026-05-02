@@ -555,7 +555,7 @@ async function handleCallback(cb, env, ctx) {
           for (const cat of availableCats) {
             keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId}|${cat}|${originalQuery}|${cb.from.id}` }]);
           }
-          keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_${movieId}|${cb.from.id}` }]);
+          keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_${movieId.substring(0, 50)}` }]);
           keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery}|${cb.from.id}` }]);
 
           const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\n\n⭐️ <b>Rating:</b> ${movie.rating}/10\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
@@ -652,16 +652,7 @@ async function handleCallback(cb, env, ctx) {
     }
 
     if (data.startsWith("watch_add_")) {
-      const parts = data.substring(10).split("|");
-      const movieId = parts[0];
-      const requesterId = parts[1];
-      
-      if (cb.from.id.toString() !== requesterId) {
-        const langCode = await getUserLang(cb.from.id, env);
-        const T = LANGS[langCode] || LANGS.si;
-        await answerCallbackSafe(bots, cb.id, T.wrong_user, true);
-        return;
-      }
+      const movieId = data.substring(10);
       
       let watchlistStr = await kv.get(`watch_${cb.from.id}`);
       let watchlist = watchlistStr ? JSON.parse(watchlistStr) : [];
