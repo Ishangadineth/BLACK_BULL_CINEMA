@@ -172,6 +172,7 @@ export default {
               for (const cat of availableCats) {
                 keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId}|${cat}|${originalQuery}|${cb.from.id}` }]);
               }
+              keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_${movieId}|${cb.from.id}` }]);
               keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery}|${cb.from.id}` }]);
 
               const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\n\n⭐️ <b>Rating:</b> ${movie.rating}/10\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
@@ -241,10 +242,41 @@ export default {
           if (!kv) throw new Error("Database KV not bound to Sender Bot!");
           const parts = data.substring(7).split("|");
           const query = parts[0];
+          
+          if (query === "watch") {
+            await deleteMessage(TG_API, chatId, msgId);
+            return new Response("OK");
+          }
+
           const results = await searchMovieInKV(query, kv);
           if (results && results.length > 0) {
             const userFirstName = cb.message.chat.first_name || "User";
             await sendSearchResults(TG_API, BOT_TOKEN, chatId, userId, cb.message.reply_to_message?.message_id || msgId, query, results, "all", env, msgId, userFirstName);
+          }
+          return new Response("OK");
+        }
+
+        if (data.startsWith("watch_add_")) {
+          const kv = env.BLACK_BULL_CINEMA;
+          const parts = data.substring(10).split("|");
+          const movieId = parts[0];
+          const requesterId = parts[1];
+          
+          if (userId.toString() !== requesterId) {
+            const langCode = await getUserLang(userId, env);
+            const T = LANGS[langCode] || LANGS.si;
+            await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: T.wrong_user, show_alert: true }) });
+            return new Response("OK");
+          }
+          
+          let watchlistStr = await kv.get(`watch_${userId}`);
+          let watchlist = watchlistStr ? JSON.parse(watchlistStr) : [];
+          if (!watchlist.includes(movieId)) {
+              watchlist.push(movieId);
+              await kv.put(`watch_${userId}`, JSON.stringify(watchlist));
+              await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "✅ Added to your Watchlist!", show_alert: true }) });
+          } else {
+              await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ Already in your Watchlist!", show_alert: true }) });
           }
           return new Response("OK");
         }
@@ -551,6 +583,41 @@ export default {
               await sendWelcomeMessage(TG_API, BOT_TOKEN, chatId, userId, env);
             }
           }
+        }
+        else if (text === "/watchlist" && isPrivate) {
+          const kv = env.BLACK_BULL_CINEMA;
+          let watchlistStr = await kv.get(`watch_${chatId}`);
+          let watchlist = watchlistStr ? JSON.parse(watchlistStr) : [];
+          
+          if (watchlist.length === 0) {
+            await tgSend(TG_API, chatId, "📝 <b>Your Watchlist is empty.</b>", []);
+            return new Response("OK");
+          }
+
+          const keyboard = [];
+          for (const movieId of watchlist) {
+            let searchKey = null;
+            if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
+            if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
+            if (searchKey) {
+              const dataStr = await kv.get(searchKey);
+              if (dataStr) {
+                const movie = JSON.parse(dataStr);
+                const prefix = movie.is_series ? "📺" : "🎬";
+                keyboard.push([{ text: `${prefix} ${movie.title} (${movie.year})`, callback_data: `view_${movieId}|watch|${chatId}` }]);
+              }
+            }
+          }
+
+          if (keyboard.length === 0) {
+            await tgSend(TG_API, chatId, "📝 <b>No valid movies found in your Watchlist.</b>", []);
+            return new Response("OK");
+          }
+
+          await fetch(`${TG_API}/sendMessage`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, text: "❤️ <b>My Watchlist:</b>\n\nClick a movie below to view it.", parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } })
+          });
         }
         else if (text === "/qq" && isAdmin && isPrivate) {
           let queue = JSON.parse(await DB.get(Q_TASKS) || "[]");
