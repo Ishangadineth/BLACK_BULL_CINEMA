@@ -133,8 +133,50 @@ async function handleMessage(msg, env, ctx) {
     return;
   }
 
+  if (text === "/watchlist") {
+    let watchlistStr = await env.BLACK_BULL_CINEMA.get(`watch_${chatId}`);
+    let watchlist = watchlistStr ? JSON.parse(watchlistStr) : [];
+    
+    if (watchlist.length === 0) {
+      await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text: "📝 <b>Your Watchlist is empty.</b>", parse_mode: "HTML" })
+      });
+      return;
+    }
+
+    const keyboard = [];
+    for (const movieId of watchlist) {
+      let searchKey = null;
+      if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
+      if (!searchKey) searchKey = await env.BLACK_BULL_CINEMA.get(`idx_${movieId}`);
+      if (searchKey) {
+        const dataStr = await env.BLACK_BULL_CINEMA.get(searchKey);
+        if (dataStr) {
+          const movie = JSON.parse(dataStr);
+          const prefix = movie.is_series ? "📺" : "🎬";
+          keyboard.push([{ text: `${prefix} ${movie.title} (${movie.year})`, callback_data: `view_${movieId}|watch|${chatId}` }]);
+        }
+      }
+    }
+
+    if (keyboard.length === 0) {
+       await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text: "📝 <b>No valid movies found in your Watchlist.</b>", parse_mode: "HTML" })
+      });
+      return;
+    }
+
+    const res = await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: "❤️ <b>My Watchlist:</b>\n\nClick a movie below to view it.", parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } })
+    });
+    return;
+  }
+
   if (text.startsWith("/") && msg.chat.type !== "private") {
-    if (!text.startsWith("/lang") && !text.startsWith("/list")) return;
+    if (!text.startsWith("/lang") && !text.startsWith("/list") && !text.startsWith("/watchlist")) return;
   }
 
   // IGNORE VIOLATIONS (URLs, Emojis, Locations) in Groups so we don't reply with "Not Found"
@@ -513,6 +555,7 @@ async function handleCallback(cb, env, ctx) {
           for (const cat of availableCats) {
             keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId}|${cat}|${originalQuery}|${cb.from.id}` }]);
           }
+          keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_${movieId}|${cb.from.id}` }]);
           keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery}|${cb.from.id}` }]);
 
           const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\n\n⭐️ <b>Rating:</b> ${movie.rating}/10\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
@@ -578,6 +621,15 @@ async function handleCallback(cb, env, ctx) {
       await answerCallbackSafe(bots, cb.id);
       const parts = data.substring(7).split("|");
       const query = parts[0];
+      
+      if (query === "watch") {
+        await fetch(`https://api.telegram.org/bot${bots[0]}/deleteMessage`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, message_id: msgId })
+        }).catch(() => {});
+        return;
+      }
+
       const results = await searchMovieInKV(query, kv);
       if (results && results.length > 0) {
         const userFirstName = cb.message.chat.first_name || "User";
@@ -595,6 +647,30 @@ async function handleCallback(cb, env, ctx) {
       if (results && results.length > 0) {
         const userFirstName = cb.message.chat.first_name || "User";
         await sendSearchResults(bots, chatId, cb.from.id, cb.message.reply_to_message?.message_id || msgId, queryPart, results, fType, env, msgId, userFirstName);
+      }
+      return;
+    }
+
+    if (data.startsWith("watch_add_")) {
+      const parts = data.substring(10).split("|");
+      const movieId = parts[0];
+      const requesterId = parts[1];
+      
+      if (cb.from.id.toString() !== requesterId) {
+        const langCode = await getUserLang(cb.from.id, env);
+        const T = LANGS[langCode] || LANGS.si;
+        await answerCallbackSafe(bots, cb.id, T.wrong_user, true);
+        return;
+      }
+      
+      let watchlistStr = await kv.get(`watch_${cb.from.id}`);
+      let watchlist = watchlistStr ? JSON.parse(watchlistStr) : [];
+      if (!watchlist.includes(movieId)) {
+          watchlist.push(movieId);
+          await kv.put(`watch_${cb.from.id}`, JSON.stringify(watchlist));
+          await answerCallbackSafe(bots, cb.id, "✅ Added to your Watchlist!", true);
+      } else {
+          await answerCallbackSafe(bots, cb.id, "⚠️ Already in your Watchlist!", true);
       }
       return;
     }

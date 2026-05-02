@@ -16,6 +16,7 @@ const LOCALES = {
     req_sent: "✅ <b>ඔයාගේ Request එක ඇඩ්මින්ට යැව්වා!</b>\n\nඅපි <code>{query}</code> ඉක්මනින්ම ගෲප් එකට දාන්නම්. දැම්මට පස්සේ ඔයාට මෙතනින් මැසේජ් එකක් එයි. 😉",
     done_msg: "✅ <b>ඔන්න ඔයා ඉල්ලපු එක දැම්මා!</b>\n\n🎬 <code>{query}</code> එක Group එකට දාලා තියෙන්නේ. දැන් ගිහින් Download කරගන්න. 😉",
     home_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ආයුබෝවන්! සාදරයෙන් පිළිගන්න.\nඔයාට අවශ්‍ය මූවීස් සහ සීරීස් පහසුවෙන් ලබා ගැනීමට අපගේ චැනල් එකේ ඇති ලින්ක් එකක් ක්ලික් කර මෙතැනට පැමිණෙන්න.\n\n🛡️ <b>Safe & Fast Delivery</b>",
+    grp_welcome: "👋 <b>සාදරයෙන් පිළිගන්න {name}!</b>\n\n🌟 <b>BLACK BULL CINEMA</b> Group එකට ඔබව සාදරයෙන් පිළිගන්නවා.\n\n⚠️ කරුණාකර ගෲප් එකේ නීති රීති පිළිපදින්න. (ලින්ක් හෝ ඉමෝජි දැමීම තහනම්)",
     btn_no: "📅 NO"
   },
   en: {
@@ -24,6 +25,7 @@ const LOCALES = {
     req_sent: "✅ <b>Your Request has been sent to the admin!</b>\n\nWe will add <code>{query}</code> to the group soon. You will receive a message here once it's done. 😉",
     done_msg: "✅ <b>The item you requested has been uploaded!</b>\n\n🎬 <code>{query}</code> is now available in the group. Go and download it now. 😉",
     home_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 Welcome! Glad to have you here.\nTo get your favorite movies and series, click a link from our channel to come here.\n\n🛡️ <b>Safe & Fast Delivery</b>",
+    grp_welcome: "👋 <b>Welcome {name}!</b>\n\n🌟 Welcome to the <b>BLACK BULL CINEMA</b> Group.\n\n⚠️ Please follow the group rules. (No links or emojis)",
     btn_no: "📅 NO"
   },
   hi: {
@@ -32,6 +34,7 @@ const LOCALES = {
     req_sent: "✅ <b>आपका अनुरोध एडमिन को भेज दिया गया है!</b>\n\nहम जल्द ही ग्रुप में <code>{query}</code> जोड़ देंगे। 😉",
     done_msg: "✅ <b>वह फिल्म जिसे आपने अनुरोध किया था, अपलोड कर दी गई है!</b>\n\n🎬 <code>{query}</code> अब ग्रुप में उपलब्ध है। 😉",
     home_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 स्वागत है!",
+    grp_welcome: "👋 <b>स्वागत है {name}!</b>\n\n🌟 <b>BLACK BULL CINEMA</b> ग्रुप में आपका स्वागत है।\n\n⚠️ कृपया समूह के नियमों का पालन करें। (कोई लिंक या इमोजी नहीं)",
     btn_no: "📅 NO"
   },
   es: {
@@ -40,6 +43,7 @@ const LOCALES = {
     req_sent: "✅ <b>¡Tu solicitud ha sido enviada al administrador!</b>\n\nPronto agregaremos <code>{query}</code> al grupo. 😉",
     done_msg: "✅ <b>¡El elemento que solicitaste ha sido subido!</b>\n\n🎬 <code>{query}</code> ya está disponible. 😉",
     home_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ¡Bienvenido!",
+    grp_welcome: "👋 <b>¡Bienvenido {name}!</b>\n\n🌟 Bienvenido al grupo <b>BLACK BULL CINEMA</b>.\n\n⚠️ Por favor sigue las reglas. (Sin enlaces ni emojis)",
     btn_no: "📅 NO"
   },
   ta: {
@@ -48,6 +52,7 @@ const LOCALES = {
     req_sent: "✅ <b>உங்கள் கோரிக்கை நிர்வாகிக்கு அனுப்பப்பட்டது!</b>\n\nவிரைவில் <code>{query}</code> ஐ குழுவில் சேர்ப்போம். 😉",
     done_msg: "✅ <b>நீங்கள் கோரியது பதிவேற்றப்பட்டது!</b>\n\n🎬 <code>{query}</code> இப்போது குழுவில் கிடைக்கிறது. 😉",
     home_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 வரவேற்கிறோம்!",
+    grp_welcome: "👋 <b>வரவேற்கிறோம் {name}!</b>\n\n🌟 <b>BLACK BULL CINEMA</b> குழுவிற்கு உங்களை வரவேற்கிறோம்.\n\n⚠️ குழு விதிகளைப் பின்பற்றவும். (இணைப்புகள் அல்லது ஈமோஜிகள் இல்லை)",
     btn_no: "📅 NO"
   }
 };
@@ -83,6 +88,37 @@ export default {
             await finalizeRequest(TG_API, ADMIN_GROUP, userId, cb.from.first_name, state, KV, LANG_KV, msgId);
             await answerCallback(TG_API, cb.id, "✅ Done!");
           }
+        }
+
+        else if (data.startsWith("setlang_")) {
+          const parts = data.replace("setlang_", "").split("_");
+          const lang = parts[0];
+          const targetUserId = parts[1];
+          
+          if (userId.toString() !== targetUserId) {
+            await answerCallback(TG_API, cb.id, "මේ ඔයා ඉල්ලපු එක නෙවේ🧐", true);
+            return new Response("OK");
+          }
+
+          if (LANG_KV) await LANG_KV.put(`lang_${userId}`, lang);
+          
+          const T = LOCALES[lang] || LOCALES.si;
+          const newWelcome = T.grp_welcome.replace("{name}", cb.from.first_name);
+          
+          const langKb = {
+            inline_keyboard: [
+              [{ text: "🇱🇰 සිංහල", callback_data: `setlang_si_${targetUserId}` }, { text: "🇬🇧 Eng", callback_data: `setlang_en_${targetUserId}` }, { text: "🇮🇳 हिन्", callback_data: `setlang_hi_${targetUserId}` }],
+              [{ text: "🇪🇸 Esp", callback_data: `setlang_es_${targetUserId}` }, { text: "🇮🇳 தமி", callback_data: `setlang_ta_${targetUserId}` }]
+            ]
+          };
+
+          await fetch(`${TG_API}/editMessageText`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: newWelcome, parse_mode: "HTML", reply_markup: langKb })
+          });
+          
+          await answerCallback(TG_API, cb.id, "✅ Language Updated!");
+          return new Response("OK");
         }
 
         else if (data.startsWith("req_complete_")) {
@@ -171,8 +207,18 @@ export default {
 
           // Welcome Msg
           if (msg.new_chat_members) {
-            const welcomeText = `👋 <b>සාදරයෙන් පිළිගන්න ${firstName}!</b>\n\n🌟 <b>BLACK BULL CINEMA</b> Group එකට ඔබව සාදරයෙන් පිළිගන්නවා.\n\n⚠️ කරුණාකර ගෲප් එකේ නීති රීති පිළිපදින්න. (ලින්ක් හෝ ඉමෝජි දැමීම තහනම්)`;
-            const res = await fetch(`${TG_API}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: welcomeText, parse_mode: "HTML" }) });
+            const langCode = await getUserLang(LANG_KV, userId);
+            const T = LOCALES[langCode] || LOCALES.si;
+            const welcomeText = T.grp_welcome.replace("{name}", firstName);
+            
+            const langKb = {
+              inline_keyboard: [
+                [{ text: "🇱🇰 සිංහල", callback_data: `setlang_si_${userId}` }, { text: "🇬🇧 Eng", callback_data: `setlang_en_${userId}` }, { text: "🇮🇳 हिन्", callback_data: `setlang_hi_${userId}` }],
+                [{ text: "🇪🇸 Esp", callback_data: `setlang_es_${userId}` }, { text: "🇮🇳 தமி", callback_data: `setlang_ta_${userId}` }]
+              ]
+            };
+
+            const res = await fetch(`${TG_API}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: welcomeText, parse_mode: "HTML", reply_markup: langKb }) });
             const data = await res.json();
             if (data.ok) {
               ctx.waitUntil((async () => {
@@ -282,8 +328,8 @@ async function getUserLang(LANG_KV, userId) {
   return lang || "si";
 }
 
-async function answerCallback(api, id, text = "") {
-  await fetch(`${api}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: id, text: text }) });
+async function answerCallback(api, id, text = "", showAlert = false) {
+  await fetch(`${api}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: id, text: text, show_alert: showAlert }) });
 }
 
 async function finalizeRequest(api, adminGroup, userId, firstName, state, KV, LANG_KV, botMsgId) {
