@@ -155,7 +155,7 @@ export default {
 
           const kv = env.BLACK_BULL_CINEMA;
           if (!kv) throw new Error("Database KV not bound to Sender Bot!");
-          
+
           let searchKey = null;
           if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
           if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
@@ -169,11 +169,12 @@ export default {
 
               const availableCats = [...new Set(movie.qualities.map(q => q.cat || "Other"))].sort();
               const keyboard = [];
+              const safeQuery = originalQuery.substring(0, 15);
               for (const cat of availableCats) {
-                keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId}|${cat}|${originalQuery}|${cb.from.id}` }]);
+                keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId.substring(0,35)}|${cat}|${safeQuery}` }]);
               }
               keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_${movieId.substring(0, 50)}` }]);
-              keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery}|${cb.from.id}` }]);
+              keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${safeQuery}` }]);
 
               const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\n\n⭐️ <b>Rating:</b> ${movie.rating}/10\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
               const randomImg = "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp";
@@ -207,14 +208,14 @@ export default {
             const dataStr = await kv.get(searchKey);
             const movie = JSON.parse(dataStr);
             const filteredQualities = movie.qualities.filter(q => (q.cat || "Other") === cat);
-            
+
             // Fetch bot username for the link
             let botUser = "Unknown_Bot";
             try {
               const bRes = await fetch(`${TG_API}/getMe`);
               const bData = await bRes.json();
               if (bData.ok) botUser = bData.result.username;
-            } catch (e) {}
+            } catch (e) { }
 
             const keyboard = [];
             for (const q of filteredQualities) {
@@ -224,7 +225,8 @@ export default {
               }
               keyboard.push([{ text: `📥 Download (${q.name})${sizeText}`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
             }
-            keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${originalQuery}|${cb.from.id}` }]);
+            const safeQuery = originalQuery ? originalQuery.substring(0, 15) : "";
+            keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${safeQuery}` }]);
 
             const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\nQuality: <b>${cat}</b>\n\nමෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇`;
 
@@ -242,7 +244,7 @@ export default {
           if (!kv) throw new Error("Database KV not bound to Sender Bot!");
           const parts = data.substring(7).split("|");
           const query = parts[0];
-          
+
           if (query === "watch") {
             await deleteMessage(TG_API, chatId, msgId);
             return new Response("OK");
@@ -259,15 +261,15 @@ export default {
         if (data.startsWith("watch_add_")) {
           const kv = env.BLACK_BULL_CINEMA;
           const movieId = data.substring(10);
-          
+
           let watchlistStr = await kv.get(`watch_${userId}`);
           let watchlist = watchlistStr ? JSON.parse(watchlistStr) : [];
           if (!watchlist.includes(movieId)) {
-              watchlist.push(movieId);
-              await kv.put(`watch_${userId}`, JSON.stringify(watchlist));
-              await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "✅ Added to your Watchlist!", show_alert: true }) });
+            watchlist.push(movieId);
+            await kv.put(`watch_${userId}`, JSON.stringify(watchlist));
+            await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "✅ Added to your Watchlist!", show_alert: true }) });
           } else {
-              await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ Already in your Watchlist!", show_alert: true }) });
+            await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ Already in your Watchlist!", show_alert: true }) });
           }
           return new Response("OK");
         }
@@ -579,7 +581,7 @@ export default {
           const kv = env.BLACK_BULL_CINEMA;
           let watchlistStr = await kv.get(`watch_${chatId}`);
           let watchlist = watchlistStr ? JSON.parse(watchlistStr) : [];
-          
+
           if (watchlist.length === 0) {
             await tgSend(TG_API, chatId, "📝 <b>Your Watchlist is empty.</b>", []);
             return new Response("OK");

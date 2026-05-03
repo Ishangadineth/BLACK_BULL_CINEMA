@@ -6,3 +6,4 @@ compatibility_date = "2024-04-22"
 # [[kv_namespaces]]
 # binding = "BLACK_BULL_CINEMA"
 # id = "YOUR_KV_NAMESPACE_ID"
+

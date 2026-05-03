@@ -552,11 +552,12 @@ async function handleCallback(cb, env, ctx) {
 
           const availableCats = [...new Set(movie.qualities.map(q => q.cat || "Other"))].sort();
           const keyboard = [];
+          const safeQuery = originalQuery.substring(0, 15);
           for (const cat of availableCats) {
-            keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId}|${cat}|${originalQuery}|${cb.from.id}` }]);
+            keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId.substring(0,35)}|${cat}|${safeQuery}` }]);
           }
           keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_${movieId.substring(0, 50)}` }]);
-          keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery}|${cb.from.id}` }]);
+          keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${safeQuery}` }]);
 
           const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\n\n⭐️ <b>Rating:</b> ${movie.rating}/10\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
           const randomImg = "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp";
@@ -605,7 +606,8 @@ async function handleCallback(cb, env, ctx) {
             }
             keyboard.push([{ text: `📥 Download (${q.name})${sizeText}`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
           }
-          keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${originalQuery}|${cb.from.id}` }]);
+          const safeQuery = originalQuery ? originalQuery.substring(0, 15) : "";
+        keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${safeQuery}` }]);
 
           const res = await fetch(`https://api.telegram.org/bot${token}/editMessageCaption`, {
             method: "POST", headers: { "Content-Type": "application/json" },

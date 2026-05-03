@@ -18,7 +18,7 @@ export default {
 
     const TG_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
     const DB = env.THUMB_KV || { get: async () => null, put: async () => { }, delete: async () => { } };
-
+    
     // Create a unique prefix for this bot based on its Token
     const botId = BOT_TOKEN.split(":")[0];
     const Q_RUNNING = `queue_running_${botId}`;
@@ -47,29 +47,15 @@ export default {
         const msgId = cb.message.message_id;
         const isPrivate = cb.message.chat.type === "private";
 
-        // Check if the user who clicked is the same as the one who requested (for group chats)
-        if (!isPrivate) {
-          const parts = data.split("|");
-          if (parts.length >= 3) {
-            const requesterId = parts[parts.length - 1];
-            if (requesterId !== String(cb.from.id)) {
-              const langCode = await getUserLang(cb.from.id, env);
-              const T = LANGS[langCode] || LANGS.si;
-              await fetch(`${TG_API}/answerCallbackQuery`, {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ callback_query_id: cb.id, text: T.wrong_user, show_alert: true })
-              });
-            }
-          }
-        }
+        // CHECK SUB CALLBACK ADDED HERE
         if (data.startsWith("check_sub_")) {
           const payloadStr = data.substring(10);
           const isSubbed = await checkForceSub(BOT_TOKEN, userId);
-
+          
           if (isSubbed) {
             // Delete the force join message
             await deleteMessage(TG_API, chatId, msgId);
-
+            
             // Re-trigger the start command logic
             const kvFiles = env.BLACK_BULL_CINEMA_FILEID;
             if (kvFiles) {
@@ -105,7 +91,7 @@ export default {
             ]
           };
           await fetch(`${TG_API}/editMessageCaption`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
+            method: "POST", headers: {"Content-Type": "application/json"},
             body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: "🌐 <b>Select your preferred language:</b>", parse_mode: "HTML", reply_markup: kb })
           });
 
@@ -124,7 +110,7 @@ export default {
             if (langCode === "si") await env.BLACK_BULL_CINEMA_LANG.delete(`lang_${userId}`);
             else await env.BLACK_BULL_CINEMA_LANG.put(`lang_${userId}`, langCode);
           }
-
+          
           let alertMsg = "✅ Language Updated!";
           if (langCode === "si") alertMsg = "✅ ඔබේ භාශාව සිංහල ලෙස වෙනස් විය!";
           else if (langCode === "en") alertMsg = "✅ Your language was changed to English!";
@@ -133,17 +119,17 @@ export default {
           else if (langCode === "ta") alertMsg = "✅ உங்கள் மொழி மாற்றப்பட்டுள்ளது!";
 
           await fetch(`${TG_API}/answerCallbackQuery`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
+            method: "POST", headers: {"Content-Type": "application/json"},
             body: JSON.stringify({ callback_query_id: cb.id, text: alertMsg, show_alert: true })
           });
-
+          
           await deleteMessage(TG_API, chatId, msgId);
           return new Response("OK");
         }
 
         if (data.startsWith("view_")) {
           await answerCallback(TG_API, cb.id);
-
+          
           const payloadStr = data.substring(5);
           const splitIndex = payloadStr.indexOf("|");
           let movieId = payloadStr;
@@ -152,86 +138,18 @@ export default {
             movieId = payloadStr.substring(0, splitIndex);
             originalQuery = payloadStr.substring(splitIndex + 1);
           }
-
+          
           const kv = env.BLACK_BULL_CINEMA;
           if (!kv) throw new Error("Database KV not bound to Sender Bot!");
-
           let searchKey = null;
           if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
           if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
-
           if (searchKey) {
             const existingStr = await kv.get(searchKey);
             if (existingStr) {
-              const movie = JSON.parse(existingStr);
-              const langCode = await getUserLang(userId, env);
-              const T = LANGS[langCode] || LANGS.si;
-
-              const availableCats = [...new Set(movie.qualities.map(q => q.cat || "Other"))].sort();
-              const keyboard = [];
-              for (const cat of availableCats) {
-                keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId}|${cat}|${originalQuery}|${cb.from.id}` }]);
-              }
-              keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_${movieId.substring(0, 50)}` }]);
-              keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery}|${cb.from.id}` }]);
-
-              const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\n\n⭐️ <b>Rating:</b> ${movie.rating}/10\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
-              const randomImg = "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp";
-              const thumb = movie.thumb || randomImg;
-
-              const payload = {
-                chat_id: chatId,
-                message_id: msgId,
-                media: { type: "photo", media: thumb, caption: detailText, parse_mode: "HTML" },
-                reply_markup: { inline_keyboard: keyboard }
-              };
-              await fetch(`${TG_API}/editMessageMedia`, {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-              });
+              const movieData = JSON.parse(existingStr);
+              await sendMovieReplyForSender(TG_API, BOT_TOKEN, chatId, cb.message.reply_to_message?.message_id || msgId, movieData, env, msgId, originalQuery);
             }
-          }
-          return new Response("OK");
-        }
-
-        if (data.startsWith("qview_")) {
-          await answerCallback(TG_API, cb.id);
-          const [movieId, cat, originalQuery] = data.substring(6).split("|");
-
-          const kv = env.BLACK_BULL_CINEMA;
-          let searchKey = null;
-          if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
-          if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
-
-          if (searchKey) {
-            const dataStr = await kv.get(searchKey);
-            const movie = JSON.parse(dataStr);
-            const filteredQualities = movie.qualities.filter(q => (q.cat || "Other") === cat);
-
-            // Fetch bot username for the link
-            let botUser = "Unknown_Bot";
-            try {
-              const bRes = await fetch(`${TG_API}/getMe`);
-              const bData = await bRes.json();
-              if (bData.ok) botUser = bData.result.username;
-            } catch (e) { }
-
-            const keyboard = [];
-            for (const q of filteredQualities) {
-              let sizeText = "";
-              if (!movie.is_series && q.size) {
-                sizeText = ` - ${formatSize(q.size)}`;
-              }
-              keyboard.push([{ text: `📥 Download (${q.name})${sizeText}`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
-            }
-            keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${originalQuery}|${cb.from.id}` }]);
-
-            const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\nQuality: <b>${cat}</b>\n\nමෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇`;
-
-            await fetch(`${TG_API}/editMessageCaption`, {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } })
-            });
           }
           return new Response("OK");
         }
@@ -240,34 +158,11 @@ export default {
           await answerCallback(TG_API, cb.id);
           const kv = env.BLACK_BULL_CINEMA;
           if (!kv) throw new Error("Database KV not bound to Sender Bot!");
-          const parts = data.substring(7).split("|");
-          const query = parts[0];
-
-          if (query === "watch") {
-            await deleteMessage(TG_API, chatId, msgId);
-            return new Response("OK");
-          }
-
+          const query = data.substring(7);
           const results = await searchMovieInKV(query, kv);
           if (results && results.length > 0) {
             const userFirstName = cb.message.chat.first_name || "User";
             await sendSearchResults(TG_API, BOT_TOKEN, chatId, userId, cb.message.reply_to_message?.message_id || msgId, query, results, "all", env, msgId, userFirstName);
-          }
-          return new Response("OK");
-        }
-
-        if (data.startsWith("watch_add_")) {
-          const kv = env.BLACK_BULL_CINEMA;
-          const movieId = data.substring(10);
-
-          let watchlistStr = await kv.get(`watch_${userId}`);
-          let watchlist = watchlistStr ? JSON.parse(watchlistStr) : [];
-          if (!watchlist.includes(movieId)) {
-            watchlist.push(movieId);
-            await kv.put(`watch_${userId}`, JSON.stringify(watchlist));
-            await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "✅ Added to your Watchlist!", show_alert: true }) });
-          } else {
-            await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ Already in your Watchlist!", show_alert: true }) });
           }
           return new Response("OK");
         }
@@ -278,63 +173,24 @@ export default {
           if (!kv) throw new Error("Database KV not bound to Sender Bot!");
           const parts = data.split("_");
           const fType = parts[1];
-          const queryPart = parts.slice(2).join("_").split("|")[0];
-          const results = await searchMovieInKV(queryPart, kv);
+          const query = parts.slice(2).join("_");
+          const results = await searchMovieInKV(query, kv);
           if (results && results.length > 0) {
             const userFirstName = cb.message.chat.first_name || "User";
-            await sendSearchResults(TG_API, BOT_TOKEN, chatId, userId, cb.message.reply_to_message?.message_id || msgId, queryPart, results, fType, env, msgId, userFirstName);
+            await sendSearchResults(TG_API, BOT_TOKEN, chatId, userId, cb.message.reply_to_message?.message_id || msgId, query, results, fType, env, msgId, userFirstName);
           }
           return new Response("OK");
         }
 
         if (data.startsWith("req_")) {
           const query = data.substring(4);
-          const reqText = `සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉`;
-          const kb = {
-            inline_keyboard: [
-              [{ text: "💝 Send Request 💝", callback_data: `reqask_${query}` }],
-              [{ text: "🔙 Back", callback_data: `search_${query}` }]
-            ]
-          };
-
-          const res = await fetch(`${TG_API}/editMessageCaption`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: reqText, reply_markup: kb })
-          });
-          const resData = await res.json();
-          if (resData.ok && ctx) {
-            ctx.waitUntil((async () => {
-              await new Promise(r => setTimeout(r, 20000));
-              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msgId }) }).catch(() => { });
-            })());
-          }
-          return new Response("OK");
-        }
-
-        if (data.startsWith("reqask_")) {
-          const query = data.substring(7);
-          const askText = `හරි දැන් ඔයා ඕනි ෆිල්ම් එකක්ද ටීවී සිරීස් එකක්ද කියලා තෝරන්නකෝ.. 🤔`;
-          const reqBotUser = env.REQ_BOT_USERNAME || "BLACKBULL_MODERATOR_BOT";
-
-          const safeParam = query.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 40);
-
-          const kb = {
-            inline_keyboard: [[
-              { text: "🎬 ෆිල්ම් එකක්", url: `https://t.me/${reqBotUser}?start=m_${safeParam}` },
-              { text: "📺 සිරී එකක්", url: `https://t.me/${reqBotUser}?start=s_${safeParam}` }
-            ]]
-          };
-
-          const res = await fetch(`${TG_API}/editMessageCaption`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: askText, reply_markup: kb })
-          });
-          const resData = await res.json();
-          if (resData.ok && ctx) {
-            ctx.waitUntil((async () => {
-              await new Promise(r => setTimeout(r, 20000));
-              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msgId }) }).catch(() => { });
-            })());
+          if (ADMIN_ID) {
+            const adminMsg = `📢 <b>New Request from User!</b>\n👤 <b>User:</b> <a href="tg://user?id=${userId}">${cb.from.first_name || "User"}</a> (<code>${userId}</code>)\n🔎 <b>Requested:</b> ${query}`;
+            await fetch(`${TG_API}/sendMessage`, { 
+              method: "POST", headers: {"Content-Type": "application/json"}, 
+              body: JSON.stringify({ chat_id: ADMIN_ID, text: adminMsg, parse_mode: "HTML" }) 
+            });
+            await answerCallback(TG_API, cb.id, "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!");
           }
           return new Response("OK");
         }
@@ -426,7 +282,7 @@ export default {
             target_file_id: state.fileId,
             source_msg_id: state.sourceMsgId || null,
             new_name: state.newName || state.origName || null, // FIX APPLIED HERE
-            thumb_file_id: thumbId,
+            thumb_file_id: thumbId, 
             bot_token: BOT_TOKEN
           }, chatId, request.url.split("?")[0], TG_API, GITHUB_REPO, GITHUB_TOKEN, Q_RUNNING, Q_TASKS);
         }
@@ -535,12 +391,12 @@ export default {
         if (text.startsWith("/start")) {
           const payloadCmd = text.split(" ")[1];
           if (payloadCmd) {
-
+            
             // FORCE SUB CHECK
             const isSubbed = await checkForceSub(BOT_TOKEN, userId);
             if (!isSubbed) {
-              await sendForceSubMessage(TG_API, BOT_TOKEN, chatId, userId, payloadCmd, env);
-              return new Response("OK");
+               await sendForceSubMessage(TG_API, BOT_TOKEN, chatId, userId, payloadCmd, env);
+               return new Response("OK");
             }
 
             const kvFiles = env.BLACK_BULL_CINEMA_FILEID;
@@ -575,49 +431,14 @@ export default {
             }
           }
         }
-        else if (text === "/watchlist" && isPrivate) {
-          const kv = env.BLACK_BULL_CINEMA;
-          let watchlistStr = await kv.get(`watch_${chatId}`);
-          let watchlist = watchlistStr ? JSON.parse(watchlistStr) : [];
-
-          if (watchlist.length === 0) {
-            await tgSend(TG_API, chatId, "📝 <b>Your Watchlist is empty.</b>", []);
-            return new Response("OK");
-          }
-
-          const keyboard = [];
-          for (const movieId of watchlist) {
-            let searchKey = null;
-            if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
-            if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
-            if (searchKey) {
-              const dataStr = await kv.get(searchKey);
-              if (dataStr) {
-                const movie = JSON.parse(dataStr);
-                const prefix = movie.is_series ? "📺" : "🎬";
-                keyboard.push([{ text: `${prefix} ${movie.title} (${movie.year})`, callback_data: `view_${movieId}|watch|${chatId}` }]);
-              }
-            }
-          }
-
-          if (keyboard.length === 0) {
-            await tgSend(TG_API, chatId, "📝 <b>No valid movies found in your Watchlist.</b>", []);
-            return new Response("OK");
-          }
-
-          await fetch(`${TG_API}/sendMessage`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chatId, text: "❤️ <b>My Watchlist:</b>\n\nClick a movie below to view it.", parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } })
-          });
-        }
         else if (text === "/qq" && isAdmin && isPrivate) {
           let queue = JSON.parse(await DB.get(Q_TASKS) || "[]");
           let running = await DB.get(Q_RUNNING);
           let msgStr = `📊 <b>Queue Status:</b>\n\n`;
           if (running) {
-            msgStr += `▶️ <b>1 task currently processing</b>\n`;
+             msgStr += `▶️ <b>1 task currently processing</b>\n`;
           } else {
-            msgStr += `⏸ <b>Idle</b>\n`;
+             msgStr += `⏸ <b>Idle</b>\n`;
           }
           msgStr += `⏳ <b>${queue.length} tasks waiting</b>`;
           await tgSend(TG_API, chatId, msgStr, []);
@@ -676,29 +497,8 @@ export default {
             await DB.put(STATE_KEY(chatId), JSON.stringify({ fileId, origName, sourceMsgId: msg.message_id, url: dlUrl, lastBotMsg: (await res.json()).result?.message_id, newName: null, waiting: null }));
           }
         } else if (isPrivate && !isAdmin) {
-          if (text && !text.startsWith("/")) {
-            const kv = env.BLACK_BULL_CINEMA;
-            if (kv) {
-              const results = await searchMovieInKV(text, kv);
-              const langCode = await getUserLang(userId, env);
-              const T = LANGS[langCode] || LANGS.si;
-
-              if (results && results.length > 0) {
-                await sendSearchResults(TG_API, BOT_TOKEN, chatId, userId, msgId, text, results, "all", env, null, firstName);
-              } else {
-                const notFoundText = T.not_found.replace("{query}", text);
-                const kb = { inline_keyboard: [[{ text: T.req_btn, callback_data: `req_${text.substring(0, 40)}` }]] };
-                await fetch(`${TG_API}/sendMessage`, {
-                  method: "POST", headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ chat_id: chatId, text: notFoundText, parse_mode: "HTML", reply_markup: kb, reply_to_message_id: msgId })
-                });
-              }
-            } else {
-              await sendWelcomeMessage(TG_API, BOT_TOKEN, chatId, userId, env);
-            }
-          } else {
-            await sendWelcomeMessage(TG_API, BOT_TOKEN, chatId, userId, env);
-          }
+          // If a non-admin sends anything else (e.g. sticker, text) in private chat
+          await sendWelcomeMessage(TG_API, BOT_TOKEN, chatId, userId, env);
         }
       }
     } catch (err) { console.error("Worker error:", err.message, err.stack); }
@@ -709,20 +509,19 @@ export default {
 const LANGS = {
   si: {
     hello: "👋 හෙලෝ {name},\n\nබලන්න ඔයා හොයන '<b>{query}</b>' මෙතන තියනවද කියලා.. 👇\n\n📌 <i>ඔයා හොයන්නේ සීරීස් එකක් නම් 'Series' කියන බට්න් එක ඔබලා ඔයාට ඕනි සීරීස් එක තෝරන්න.</i>",
-    movies: "🎬 චිත්‍රපට",
-    series: "📺 ටීවී සීරීස්",
+    movies: "🎬 Movies",
+    series: "📺 Series",
     not_found: "❌ ඔයා හොයන '<b>{query}</b>' අපේ පද්ධතියේ නෑ.\n\nපහළ බට්න් එක ඔබලා Admin ට Request එකක් දාන්න. 👇",
-    not_found_cat: "🚫 මෙම ගණයට අදාළ ප්‍රතිඵල හමු නොවීය.",
-    not_here: "මේ list එකේ නෑනේ🥲",
-    change_lang: "🌐 භාෂාව වෙනස් කරන්න",
+    not_found_cat: "🚫 No results found for this category.",
+    not_here: "😮 මෙතන නෑනේ",
+    change_lang: "🌐 Change Language",
     req_sent: "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!",
-    req_btn: "මේ list එකේ නෑනේ🥲 (Request Movie)",
-    force_sub: "❌ <b>ඔයා අපේ Main Channels දෙකටම Join වෙලා නෑ!</b>\n\nපහළ තියෙන Channels දෙකටම Join වෙලා ඇවිත් ආපහු '✅ මම සම්බන්ධ වුණා' කියන එක ඔබන්න.",
-    joined_btn: "✅ මම සම්බන්ධ වුණා",
-    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ආයුබෝවන්! සාදරයෙන් පිළිගන්න.\nඔයාට අවශ්‍ය මූවීස් සහ සීරීස් පහසුවෙන් ලබා ගැනීමට අපගේ චැනල් එකේ ඇති ලින්ක් එකක් ක්ලික් කර මෙතැනට පැමිණෙන්න.\n\n🛡️ <b>ආරක්ෂිත සහ වේගවත් සේවාව</b>",
-    ch_btn: "📢 නිල චැනලය",
-    gp_btn: "💬 ප්‍රධාන ගෲප් එක",
-    wrong_user: "මේ ඔයා ඉල්ලපු එක නෙවේ🧐"
+    req_btn: "😮 මෙතන නෑනේ (Request Movie)",
+    force_sub: "❌ <b>ඔයා අපේ Main Channels දෙකටම Join වෙලා නෑ!</b>\n\nපහළ තියෙන Channels දෙකටම Join වෙලා ඇවිත් ආපහු '✅ I have Joined' කියන එක ඔබන්න.",
+    joined_btn: "✅ I have Joined",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ආයුබෝවන්! සාදරයෙන් පිළිගන්න.\nඔයාට අවශ්‍ය මූවීස් සහ සීරීස් පහසුවෙන් ලබා ගැනීමට අපගේ චැනල් එකේ ඇති ලින්ක් එකක් ක්ලික් කර මෙතැනට පැමිණෙන්න.\n\n🛡️ <b>Safe & Fast Delivery</b>",
+    ch_btn: "📢 Official Channel",
+    gp_btn: "💬 Main Group"
   },
   en: {
     hello: "👋 Hello {name},\n\nCheck if the movie '<b>{query}</b>' you are looking for is here.. 👇\n\n📌 <i>If you are looking for a series, tap the 'Series' button to filter.</i>",
@@ -738,59 +537,55 @@ const LANGS = {
     joined_btn: "✅ I have Joined",
     welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 Hello! Welcome.\nTo easily get your desired movies and series, click a link in our channel to come here.\n\n🛡️ <b>Safe & Fast Delivery</b>",
     ch_btn: "📢 Official Channel",
-    gp_btn: "💬 Main Group",
-    wrong_user: "That wasn't requested by you! 🧐"
+    gp_btn: "💬 Main Group"
   },
   hi: {
     hello: "👋 नमस्ते {name},\n\nजांचें कि आप जिस फिल्म '<b>{query}</b>' की तलाश कर रहे हैं वह यहां है या नहीं.. 👇\n\n📌 <i>यदि आप कोई श्रृंखला ढूंढ रहे हैं, तो 'Series' बटन पर टैप करें।</i>",
-    movies: "🎬 फिल्में",
-    series: "📺 श्रृंखला",
+    movies: "🎬 Movies",
+    series: "📺 Series",
     not_found: "❌ फिल्म '<b>{query}</b>' हमारे सिस्टम में नहीं है।\n\nएडमिन से अनुरोध करने के लिए नीचे दिए गए बटन पर टैप करें। 👇",
     not_found_cat: "🚫 इस श्रेणी के लिए कोई परिणाम नहीं मिला।",
     not_here: "😮 यहाँ नहीं है",
-    change_lang: "🌐 भाषा बदलें",
+    change_lang: "🌐 Change Language",
     req_sent: "✅ आपका अनुरोध एडमिन को भेज दिया गया है! हम इसे जल्द ही जोड़ देंगे।",
-    req_btn: "😮 मूवी अनुरोध करें",
-    force_sub: "❌ <b>आप हमारे मुख्य चैनल में शामिल नहीं हुए हैं!</b>\n\nकृपया नीचे दिए गए 2 चैनलों से जुड़ें और '✅ मैं शामिल हो गया' पर क्लिक करें।",
-    joined_btn: "✅ मैं शामिल हो गया",
-    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 नमस्ते! स्वागत है।\nअपनी मनपसंद फिल्में और सीरीज आसानी से पाने के लिए हमारे चैनल में दिए गए लिंक पर क्लिक करके यहां आएं।\n\n🛡️ <b>सुरक्षित और तेज़ डिलीवरी</b>",
-    ch_btn: "📢 आधिकारिक चैनल",
-    gp_btn: "💬 मुख्य समूह",
-    wrong_user: "यह आपके द्वारा अनुरोधित नहीं किया गया था! 🧐"
+    req_btn: "😮 Request Movie",
+    force_sub: "❌ <b>आप हमारे मुख्य चैनल में शामिल नहीं हुए हैं!</b>\n\nकृपया नीचे दिए गए 2 चैनलों से जुड़ें और '✅ I have Joined' पर क्लिक करें।",
+    joined_btn: "✅ I have Joined",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 नमस्ते! स्वागत है।\nअपनी मनपसंद फिल्में और सीरीज आसानी से पाने के लिए हमारे चैनल में दिए गए लिंक पर क्लिक करके यहां आएं।\n\n🛡️ <b>Safe & Fast Delivery</b>",
+    ch_btn: "📢 Official Channel",
+    gp_btn: "💬 Main Group"
   },
   es: {
     hello: "👋 Hola {name},\n\nComprueba si la película '<b>{query}</b>' que buscas está aquí.. 👇\n\n📌 <i>Si buscas una serie, toca el botón 'Series'.</i>",
-    movies: "🎬 Películas",
+    movies: "🎬 Movies",
     series: "📺 Series",
     not_found: "❌ La película '<b>{query}</b>' no está en nuestro sistema.\n\nToca el botón de abajo para pedirla al administrador. 👇",
     not_found_cat: "🚫 No se encontraron resultados para esta categoría.",
     not_here: "😮 No está aquí",
-    change_lang: "🌐 Cambiar idioma",
+    change_lang: "🌐 Change Language",
     req_sent: "✅ ¡Tu solicitud ha sido enviada al Administrador! La agregaremos pronto.",
-    req_btn: "😮 Solicitar película",
-    force_sub: "❌ <b>¡No te has unido a nuestros canales principales!</b>\n\nÚnete a los 2 canales a continuación y haz clic en '✅ Me he unido'.",
-    joined_btn: "✅ Me he unido",
-    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ¡Hola! Bienvenido.\nPara obtener fácilmente tus películas y series, haz clic en un enlace de nuestro canal para venir aquí.\n\n🛡️ <b>Entrega rápida y segura</b>",
-    ch_btn: "📢 Canal oficial",
-    gp_btn: "💬 Grupo principal",
-    wrong_user: "¡Eso no fue solicitado por ti! 🧐"
+    req_btn: "😮 Request Movie",
+    force_sub: "❌ <b>¡No te has unido a nuestros canales principales!</b>\n\nÚnete a los 2 canales a continuación y haz clic en '✅ I have Joined'.",
+    joined_btn: "✅ I have Joined",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ¡Hola! Bienvenido.\nPara obtener fácilmente tus películas y series, haz clic en un enlace de nuestro canal para venir aquí.\n\n🛡️ <b>Safe & Fast Delivery</b>",
+    ch_btn: "📢 Official Channel",
+    gp_btn: "💬 Main Group"
   },
   ta: {
     hello: "👋 வணக்கம் {name},\n\nநீங்கள் தேடும் '<b>{query}</b>' திரைப்படம் இங்கே உள்ளதா என்று பார்க்கவும்.. 👇\n\n📌 <i>நீங்கள் ஒரு தொடரை தேடுகிறீர்கள் என்றால், 'Series' பொத்தானை அழுத்தவும்.</i>",
-    movies: "🎬 திரைப்படங்கள்",
-    series: "📺 தொடர்கள்",
+    movies: "🎬 Movies",
+    series: "📺 Series",
     not_found: "❌ '<b>{query}</b>' திரைப்படம் எங்கள் கணினியில் இல்லை.\n\nநிர்வாகியிடம் கோர கீழேயுள்ள பொத்தானை அழுத்தவும். 👇",
     not_found_cat: "🚫 இந்த வகைக்கு முடிவுகள் எதுவும் கிடைக்கவில்லை.",
     not_here: "😮 இங்கே இல்லை",
-    change_lang: "🌐 மொழியை மாற்றவும்",
+    change_lang: "🌐 Change Language",
     req_sent: "✅ உங்கள் கோரிக்கை நிர்வாகிக்கு அனுப்பப்பட்டது! விரைவில் சேர்ப்போம்.",
-    req_btn: "😮 திரைப்படத்தை கோருங்கள்",
-    force_sub: "❌ <b>எங்கள் முக்கிய சேனல்களில் நீங்கள் சேரவில்லை!</b>\n\nகீழே உள்ள 2 சேனல்களில் சேர்ந்து '✅ நான் சேர்ந்துவிட்டேன்' என்பதைக் கிளிக் செய்யவும்.",
-    joined_btn: "✅ நான் சேர்ந்துவிட்டேன்",
-    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 வணக்கம்! வரவேற்கிறோம்.\nஉங்களுக்குத் தேவையான திரைப்படங்கள் மற்றும் தொடர்களை எளிதாகப் பெற, எங்கள் சேனலில் உள்ள இணைப்பைக் கிளிக் செய்து இங்கே வரவும்.\n\n🛡️ <b>பாதுகாப்பான மற்றும் வேகமான விநியோகம்</b>",
-    ch_btn: "📢 அதிகாரப்பூர்வ சேனல்",
-    gp_btn: "💬 முக்கிய குழு",
-    wrong_user: "இது உங்களால் கோரப்படவில்லை! 🧐"
+    req_btn: "😮 Request Movie",
+    force_sub: "❌ <b>எங்கள் முக்கிய சேனல்களில் நீங்கள் சேரவில்லை!</b>\n\nகீழே உள்ள 2 சேனல்களில் சேர்ந்து '✅ I have Joined' என்பதைக் கிளிக் செய்யவும்.",
+    joined_btn: "✅ I have Joined",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 வணக்கம்! வரவேற்கிறோம்.\nஉங்களுக்குத் தேவையான திரைப்படங்கள் மற்றும் தொடர்களை எளிதாகப் பெற, எங்கள் சேனலில் உள்ள இணைப்பைக் கிளிக் செய்து இங்கே வரவும்.\n\n🛡️ <b>Safe & Fast Delivery</b>",
+    ch_btn: "📢 Official Channel",
+    gp_btn: "💬 Main Group"
   }
 };
 
@@ -806,7 +601,7 @@ async function getChannelLink(botToken, channelId, kv) {
   let link = null;
   if (kv) link = await kv.get(`invite_${channelId}`);
   if (link) return link;
-
+  
   try {
     const res = await fetch(`https://api.telegram.org/bot${botToken}/exportChatInviteLink?chat_id=${channelId}`);
     const data = await res.json();
@@ -814,7 +609,7 @@ async function getChannelLink(botToken, channelId, kv) {
       if (kv) await kv.put(`invite_${channelId}`, data.result);
       return data.result;
     }
-  } catch (e) { }
+  } catch(e) {}
   return "https://t.me/";
 }
 
@@ -884,7 +679,7 @@ async function searchMovieInKV(query, kv) {
     if (keyObj.name.startsWith("admin_") || keyObj.name.startsWith("config_") || keyObj.name.startsWith("idx_")) continue;
     const dataString = await kv.get(keyObj.name);
     if (dataString) {
-      try { results.push(JSON.parse(dataString)); } catch (e) { }
+      try { results.push(JSON.parse(dataString)); } catch (e) {}
     }
   }
   return results;
@@ -899,7 +694,7 @@ async function sendSearchResults(api, botToken, chatId, userId, replyToMsgId, qu
   if (filterType === "series") filtered = results.filter(r => r.is_series);
 
   const defaultImages = [
-    "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000",
+    "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000", 
     "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000",
     "https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=1000"
   ];
@@ -917,7 +712,7 @@ async function sendSearchResults(api, botToken, chatId, userId, replyToMsgId, qu
     keyboard.push([{ text: `🎬 ${r.title} (${r.year})`, callback_data: `view_${r.id}|${safeQuery}` }]);
   }
   if (filtered.length === 0) keyboard.push([{ text: T.not_found_cat, callback_data: "none" }]);
-  keyboard.push([{ text: T.not_here, callback_data: `req_${query.substring(0, 40)}` }]);
+  keyboard.push([{ text: T.not_here, callback_data: `req_${query.substring(0,40)}` }]);
   keyboard.push([{ text: T.change_lang, callback_data: "lang_menu" }]);
 
   const payload = { chat_id: chatId, reply_markup: { inline_keyboard: keyboard } };
@@ -938,18 +733,6 @@ async function sendSearchResults(api, botToken, chatId, userId, replyToMsgId, qu
   if (!data.ok) throw new Error(data.description);
 }
 
-function formatSize(bytes) {
-  if (!bytes || bytes === 0) return "";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let size = bytes;
-  let unitIndex = 0;
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex++;
-  }
-  return `${size.toFixed(1)}${units[unitIndex]}`;
-}
-
 async function sendMovieReplyForSender(api, botToken, chatId, replyToMsgId, movieData, env, editMsgId = null, originalQuery = null) {
   const text = `🎬 <b>${movieData.is_series ? 'Series' : 'Movie'} Found!</b>\n\n📌 <b>Title:</b> ${movieData.title}\n📅 <b>Year:</b> ${movieData.year}\n⭐ <b>Rating:</b> ${movieData.rating}\n\n<i>Select quality to download below:</i>`;
 
@@ -965,7 +748,7 @@ async function sendMovieReplyForSender(api, botToken, chatId, replyToMsgId, movi
       const res = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
       const data = await res.json();
       if (data.ok && data.result) return data.result.username;
-    } catch (e) { }
+    } catch(e){}
     return "UnknownBot";
   })();
 
@@ -986,7 +769,7 @@ async function sendMovieReplyForSender(api, botToken, chatId, replyToMsgId, movi
   }
 
   if (originalQuery) {
-    keyboard.push([{ text: "⬅️ Back to Search", callback_data: `search_${originalQuery}|${userId}` }]);
+    keyboard.push([{ text: "⬅️ Back to Search", callback_data: `search_${originalQuery}` }]);
   }
 
   const defaultImages = ["https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000", "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000", "https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=1000"];
@@ -1037,7 +820,7 @@ async function sendMovieFile(api, chatId, fileId, type = "video", caption = "", 
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(requestPayload)
   });
-
+  
   if (!response.ok) {
     const data = await response.json();
     await fetch(`${api}/sendMessage`, {
@@ -1076,7 +859,7 @@ async function enqueueTask(DB, taskPayload, chatId, requestUrl, TG_API, GITHUB_R
   let queue = JSON.parse(await DB.get(Q_TASKS) || "[]");
   queue.push({ task: taskPayload, worker_url: requestUrl, chat_id: chatId, repo: GITHUB_REPO, token: GITHUB_TOKEN });
   await DB.put(Q_TASKS, JSON.stringify(queue));
-
+  
   await processQueue(DB, TG_API, GITHUB_REPO, GITHUB_TOKEN, Q_RUNNING, Q_TASKS);
 }
 
@@ -1105,7 +888,7 @@ async function processQueue(DB, TG_API, defaultRepo, defaultToken, Q_RUNNING, Q_
 
   // Ensure worker_url is passed to payload
   nextItem.task.worker_url = nextItem.worker_url;
-
+  
   const repo = nextItem.repo || defaultRepo;
   const token = nextItem.token || defaultToken;
   await dispatchGitHub(repo, token, nextItem.task);
