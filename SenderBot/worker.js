@@ -212,6 +212,9 @@ export default {
               for (const cat of availableCats) {
                 keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${cat.substring(0, 20)}` }]);
               }
+              if (movie.trailer) {
+                keyboard.push([{ text: "🎬 Watch Trailer", url: movie.trailer }]);
+              }
               keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_` }]);
               keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery.substring(0, 15)}` }]);
 
@@ -270,13 +273,24 @@ export default {
               if (bData.ok) botUser = bData.result.username;
             } catch (e) { }
 
+            const kvRef = env.BLACKBULL_REF_POINT;
+            const currentPoints = kvRef ? parseInt(await kvRef.get("pts_" + userId) || "0") : 0;
+
             const keyboard = [];
             for (const q of filteredQualities) {
               let sizeText = "";
               if (!movie.is_series && q.size) {
                 sizeText = ` - ${formatSize(q.size)}`;
               }
-              keyboard.push([{ text: `📥 Download (${q.name})${sizeText}`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
+              
+              if (currentPoints >= 5) {
+                keyboard.push([{ text: `📥 Download (${q.name})${sizeText} ⚡`, callback_data: `direct_get_${q.q}` }]);
+              } else {
+                keyboard.push([{ text: `📥 Download (${q.name})${sizeText}`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
+              }
+            }
+            if (movie.trailer) {
+              keyboard.push([{ text: "🎬 Watch Trailer", url: movie.trailer }]);
             }
             const safeQuery = originalQuery ? originalQuery.substring(0, 15) : "";
             keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${safeQuery}` }]);
@@ -287,6 +301,33 @@ export default {
               method: "POST", headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } })
             });
+          }
+          return new Response("OK");
+        }
+
+        if (data.startsWith("direct_get_")) {
+          const fileKey = data.substring(11);
+          const kvRef = env.BLACKBULL_REF_POINT;
+          const currentPoints = kvRef ? parseInt(await kvRef.get("pts_" + userId) || "0") : 0;
+          
+          if (currentPoints < 5) {
+            await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ You don't have enough points (5 required).", show_alert: true }) });
+            return new Response("OK");
+          }
+
+          await kvRef.put("pts_" + userId, (currentPoints - 5).toString());
+          await answerCallback(TG_API, cb.id, "✅ Points deducted. Sending file...");
+          
+          const kvFiles = env.BLACK_BULL_CINEMA_FILEID;
+          const filesStr = await kvFiles.get(fileKey);
+          if (filesStr) {
+             try {
+               const files = JSON.parse(filesStr);
+               const fileArray = Array.isArray(files) ? files : [files];
+               for (const file of fileArray) {
+                 await sendMovieFile(TG_API, chatId, file.id, file.type, file.caption || "", DB_CHANNEL);
+               }
+             } catch(e) {}
           }
           return new Response("OK");
         }

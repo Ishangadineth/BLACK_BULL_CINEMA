@@ -359,6 +359,18 @@ async function handleAdminLogic(msg, env) {
     state.title = parts[0] || "Unknown";
     state.year = parts[1] || "Unknown";
     state.rating = parts[2] || "N/A";
+    state.step = "ask_trailer";
+    await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
+    
+    const kb = { inline_keyboard: [[{ text: "⏭ Skip Trailer", callback_data: "skip_trailer" }]] };
+    return fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: "🎞 <b>Enter Trailer URL (YouTube link)</b>\n<i>(Or tap Skip)</i>", parse_mode: "HTML", reply_markup: kb })
+    });
+  }
+
+  if (state.step === "ask_trailer" && text) {
+    state.trailer = text.trim();
     state.step = "ask_quality";
     await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
     return sendMsg("2️⃣ Enter <b>Format/Type</b>\n<i>(e.g: WEB-DL, Bluray, HDRip)</i>");
@@ -500,6 +512,14 @@ async function handleCallback(cb, env, ctx) {
       return;
     }
 
+    if (data === "skip_trailer") {
+      state.trailer = null;
+      state.step = "ask_quality";
+      await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
+      await editMsg("✅ <b>Trailer Skipped.</b>\n\n2️⃣ Enter <b>Format/Type</b>\n<i>(e.g: WEB-DL, Bluray, HDRip)</i>");
+      return;
+    }
+
     if (data.startsWith("qbtn_")) {
       const qSelected = data.split("_")[1];
       state.quality_btn = qSelected;
@@ -612,6 +632,9 @@ async function handleCallback(cb, env, ctx) {
           for (const cat of availableCats) {
             keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId.substring(0,35)}|${cat}|${safeQuery}` }]);
           }
+          if (movie.trailer) {
+            keyboard.push([{ text: "🎬 Watch Trailer", url: movie.trailer }]);
+          }
           keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_${movieId.substring(0, 50)}` }]);
           keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${safeQuery}` }]);
 
@@ -679,6 +702,9 @@ async function handleCallback(cb, env, ctx) {
               // Standard Gateway
               keyboard.push([{ text: `📥 Download (${q.name})${sizeText}`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
             }
+          }
+          if (movie.trailer) {
+            keyboard.push([{ text: "🎬 Watch Trailer", url: movie.trailer }]);
           }
           const safeQuery = originalQuery ? originalQuery.substring(0, 15) : "";
           keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${safeQuery}` }]);
@@ -883,6 +909,7 @@ async function finalizeSave(chatId, state, env, thumbId) {
     year: state.year,
     rating: state.rating,
     is_series: state.is_series || false,
+    trailer: state.trailer || null,
     qualities: []
   };
   const existingStr = await kv.get(searchKey);
@@ -931,12 +958,34 @@ async function finalizeSave(chatId, state, env, thumbId) {
     await kv.put(`idx_${movieData.id}`, searchKey);
   }
 
+  // ── Generate Auto-Post ──
+  const postCaption = `🎬 <b>${movieData.title.toUpperCase()} (${movieData.year})</b>\n\n` +
+    `⭐ <b>IMDb Rating:</b> ${movieData.rating}/10\n` +
+    `🎭 <b>Category:</b> ${movieData.is_series ? 'TV Series' : 'Movie'}\n` +
+    `🎞 <b>Qualities:</b> ${movieData.qualities.map(q => q.name).join(" | ")}\n\n` +
+    `📥 <b>ඔබට අවශ්‍ය සියලුම චිත්‍රපට සහ ටෙලි කතා සිංහල උපසිරැසි සමඟින් ලබා ගැනීමට පහත චැනල් එකට සම්බන්ධ වන්න.</b>\n` +
+    `👉 https://t.me/BLACKBULLCINEMA\n\n` +
+    `#${movieData.title.replace(/\s+/g, '')} #${movieData.year} #BlackBullCinema`;
+
+  const randomImg = "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp";
+  const postThumb = movieData.thumb || randomImg;
+
+  await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendPhoto`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      photo: postThumb,
+      caption: `✨ <b>Generated Auto-Post:</b>\n\n${postCaption}`,
+      parse_mode: "HTML"
+    })
+  });
+
   const sendMsg = async (msgText) => fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text: msgText, parse_mode: "HTML" })
   });
 
-  return sendMsg(`✅ <b>Successfully Saved to KV!</b>\n\n📌 <b>Key:</b> <code>${searchKey}</code>\n🎬 <b>Type:</b> ${movieData.is_series ? 'Series' : 'Movie'}\n🎬 <b>Total Qualities:</b> ${movieData.qualities.length}\n📦 <b>Grouped Files:</b> ${state.files.length}\n🖼 <b>Thumbnail:</b> ${thumbId ? "Yes" : "No"}\n🔗 <b>Gateway ID:</b> <code>${gatewayId}</code>\n\n<i>Forward another video to add more qualities or a new movie.</i>`);
+  return sendMsg(`✅ <b>Successfully Saved to KV!</b>\n\n📌 <b>Key:</b> <code>${searchKey}</code>\n🎬 <b>Type:</b> ${movieData.is_series ? 'Series' : 'Movie'}\n🎬 <b>Total Qualities:</b> ${movieData.qualities.length}\n📦 <b>Grouped Files:</b> ${state.files.length}\n🎞 <b>Trailer:</b> ${movieData.trailer ? "Yes" : "No"}\n🖼 <b>Thumbnail:</b> ${thumbId ? "Yes" : "No"}\n🔗 <b>Gateway ID:</b> <code>${gatewayId}</code>\n\n<i>Forward another video to add more qualities or a new movie.</i>`);
 }
 
 // ══════════════════════════════════════════════
