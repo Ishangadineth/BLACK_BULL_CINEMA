@@ -159,6 +159,11 @@ export default {
           let searchKey = null;
           if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
           if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
+          
+          if (!searchKey) {
+             const list = await kv.list({ prefix: `idx_${movieId}` });
+             if (list.keys.length > 0) searchKey = await kv.get(list.keys[0].name);
+          }
 
           if (searchKey) {
             const existingStr = await kv.get(searchKey);
@@ -218,6 +223,11 @@ export default {
           let searchKey = null;
           if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
           if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
+          
+          if (!searchKey) {
+             const list = await kv.list({ prefix: `idx_${movieId}` });
+             if (list.keys.length > 0) searchKey = await kv.get(list.keys[0].name);
+          }
 
           if (searchKey) {
             const dataStr = await kv.get(searchKey);
