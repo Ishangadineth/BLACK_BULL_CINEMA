@@ -47,6 +47,22 @@ export default {
         const msgId = cb.message.message_id;
         const isPrivate = cb.message.chat.type === "private";
 
+        // Expiration check for navigation buttons (5 minutes = 300 seconds)
+        const expiringPrefixes = ["view_", "qview_", "watch_add_", "search_"];
+        if (expiringPrefixes.some(prefix => data.startsWith(prefix))) {
+          const msgTime = cb.message.edit_date || cb.message.date;
+          const now = Math.floor(Date.now() / 1000);
+          if (now - msgTime > 300) {
+            const langCode = await getUserLang(userId, env);
+            const T = LANGS[langCode] || LANGS.si;
+            await fetch(`${TG_API}/answerCallbackQuery`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ callback_query_id: cb.id, text: T.expired || "⚠️ Expired! Please search again.", show_alert: true })
+            });
+            return new Response("OK");
+          }
+        }
+
         // Check if the user who clicked is the same as the one who requested (for group chats)
         if (!isPrivate) {
           const parts = data.split("|");
@@ -756,7 +772,8 @@ const LANGS = {
     welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ආයුබෝවන්! සාදරයෙන් පිළිගන්න.\nඔයාට අවශ්‍ය මූවීස් සහ සීරීස් පහසුවෙන් ලබා ගැනීමට අපගේ චැනල් එකේ ඇති ලින්ක් එකක් ක්ලික් කර මෙතැනට පැමිණෙන්න.\n\n🛡️ <b>ආරක්ෂිත සහ වේගවත් සේවාව</b>",
     ch_btn: "📢 නිල චැනලය",
     gp_btn: "💬 ප්‍රධාන ගෲප් එක",
-    wrong_user: "මේ ඔයා ඉල්ලපු එක නෙවේ🧐"
+    wrong_user: "මේ ඔයා ඉල්ලපු එක නෙවේ🧐",
+    expired: "⚠️ මෙම පණිවිඩය කල් ඉකුත් වී ඇත. කරුණාකර නැවත Search කරන්න! 🔄"
   },
   en: {
     hello: "👋 Hello {name},\n\nCheck if the movie '<b>{query}</b>' you are looking for is here.. 👇\n\n📌 <i>If you are looking for a series, tap the 'Series' button to filter.</i>",
@@ -773,7 +790,8 @@ const LANGS = {
     welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 Hello! Welcome.\nTo easily get your desired movies and series, click a link in our channel to come here.\n\n🛡️ <b>Safe & Fast Delivery</b>",
     ch_btn: "📢 Official Channel",
     gp_btn: "💬 Main Group",
-    wrong_user: "That wasn't requested by you! 🧐"
+    wrong_user: "That wasn't requested by you! 🧐",
+    expired: "⚠️ This message has expired. Please search again! 🔄"
   },
   hi: {
     hello: "👋 नमस्ते {name},\n\nजांचें कि आप जिस फिल्म '<b>{query}</b>' की तलाश कर रहे हैं वह यहां है या नहीं.. 👇\n\n📌 <i>यदि आप कोई श्रृंखला ढूंढ रहे हैं, तो 'Series' बटन पर टैप करें।</i>",
@@ -790,7 +808,8 @@ const LANGS = {
     welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 नमस्ते! स्वागत है।\nअपनी मनपसंद फिल्में और सीरीज आसानी से पाने के लिए हमारे चैनल में दिए गए लिंक पर क्लिक करके यहां आएं।\n\n🛡️ <b>सुरक्षित और तेज़ डिलीवरी</b>",
     ch_btn: "📢 आधिकारिक चैनल",
     gp_btn: "💬 मुख्य समूह",
-    wrong_user: "यह आपके द्वारा अनुरोधित नहीं किया गया था! 🧐"
+    wrong_user: "यह आपके द्वारा अनुरोधित नहीं किया गया था! 🧐",
+    expired: "⚠️ यह संदेश समाप्त हो गया है। कृपया फिर से खोजें! 🔄"
   },
   es: {
     hello: "👋 Hola {name},\n\nComprueba si la película '<b>{query}</b>' que buscas está aquí.. 👇\n\n📌 <i>Si buscas una serie, toca el botón 'Series'.</i>",
@@ -807,7 +826,8 @@ const LANGS = {
     welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ¡Hola! Bienvenido.\nPara obtener fácilmente tus películas y series, haz clic en un enlace de nuestro canal para venir aquí.\n\n🛡️ <b>Entrega rápida y segura</b>",
     ch_btn: "📢 Canal oficial",
     gp_btn: "💬 Grupo principal",
-    wrong_user: "¡Eso no fue solicitado por ti! 🧐"
+    wrong_user: "¡Eso no fue solicitado por ti! 🧐",
+    expired: "⚠️ Este mensaje ha caducado. ¡Vuelve a buscar! 🔄"
   },
   ta: {
     hello: "👋 வணக்கம் {name},\n\nநீங்கள் தேடும் '<b>{query}</b>' திரைப்படம் இங்கே உள்ளதா என்று பார்க்கவும்.. 👇\n\n📌 <i>நீங்கள் ஒரு தொடரை தேடுகிறீர்கள் என்றால், 'Series' பொத்தானை அழுத்தவும்.</i>",
@@ -824,7 +844,8 @@ const LANGS = {
     welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 வணக்கம்! வரவேற்கிறோம்.\nஉங்களுக்குத் தேவையான திரைப்படங்கள் மற்றும் தொடர்களை எளிதாகப் பெற, எங்கள் சேனலில் உள்ள இணைப்பைக் கிளிக் செய்து இங்கே வரவும்.\n\n🛡️ <b>பாதுகாப்பான மற்றும் வேகமான விநியோகம்</b>",
     ch_btn: "📢 அதிகாரப்பூர்வ சேனல்",
     gp_btn: "💬 முக்கிய குழு",
-    wrong_user: "இது உங்களால் கோரப்படவில்லை! 🧐"
+    wrong_user: "இது உங்களால் கோரப்படவில்லை! 🧐",
+    expired: "⚠️ இந்த செய்தி காலாவதியாகிவிட்டது. மீண்டும் தேடவும்! 🔄"
   }
 };
 
