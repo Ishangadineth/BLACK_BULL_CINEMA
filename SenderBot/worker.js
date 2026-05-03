@@ -908,7 +908,11 @@ async function searchMovieInKV(query, kv) {
     if (keyObj.name.startsWith("admin_") || keyObj.name.startsWith("config_") || keyObj.name.startsWith("idx_")) continue;
     const dataString = await kv.get(keyObj.name);
     if (dataString) {
-      try { results.push(JSON.parse(dataString)); } catch (e) { }
+      try {
+        const parsed = JSON.parse(dataString);
+        parsed._key = keyObj.name;
+        results.push(parsed);
+      } catch (e) { }
     }
   }
   return results;
@@ -937,8 +941,9 @@ async function sendSearchResults(api, botToken, chatId, userId, replyToMsgId, qu
   ]);
   // List Buttons
   for (const r of filtered) {
-    const safeQuery = query.substring(0, 30);
-    keyboard.push([{ text: `🎬 ${r.title} (${r.year})`, callback_data: `view_${r.id}|${safeQuery}` }]);
+    const safeQuery = query.substring(0, 20);
+    const mId = r.id ? r.id : r._key.substring(0, 30);
+    keyboard.push([{ text: `🎬 ${r.title} (${r.year})`, callback_data: `view_${mId}|${safeQuery}` }]);
   }
   if (filtered.length === 0) keyboard.push([{ text: T.not_found_cat, callback_data: "none" }]);
   keyboard.push([{ text: T.not_here, callback_data: `req_${query.substring(0, 40)}` }]);
