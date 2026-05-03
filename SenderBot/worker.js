@@ -169,15 +169,21 @@ export default {
 
               const availableCats = [...new Set(movie.qualities.map(q => q.cat || "Other"))].sort();
               const keyboard = [];
-              const safeQuery = originalQuery.substring(0, 15);
+              
+              // Save context to DB state to avoid 64-byte limit
+              const state = JSON.parse(await DB.get(STATE_KEY(chatId)) || "{}");
+              state.lastMovie = movieId;
+              state.lastQuery = originalQuery;
+              await DB.put(STATE_KEY(chatId), JSON.stringify(state));
+
               for (const cat of availableCats) {
-                keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId.substring(0,35)}|${cat}|${safeQuery}` }]);
+                keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${cat.substring(0, 20)}` }]);
               }
-              keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_${movieId.substring(0, 50)}` }]);
-              keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${safeQuery}` }]);
+              keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_` }]);
+              keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery.substring(0, 15)}` }]);
 
               const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\n\n⭐️ <b>Rating:</b> ${movie.rating}/10\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
-              const randomImg = "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp";
+              const randomImg = "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000";
               const thumb = movie.thumb || randomImg;
 
               const payload = {
@@ -197,7 +203,16 @@ export default {
 
         if (data.startsWith("qview_")) {
           await answerCallback(TG_API, cb.id);
-          const [movieId, cat, originalQuery] = data.substring(6).split("|");
+          const cat = data.substring(6);
+
+          const state = JSON.parse(await DB.get(STATE_KEY(chatId)) || "{}");
+          const movieId = state.lastMovie;
+          const originalQuery = state.lastQuery || "";
+
+          if (!movieId) {
+             await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ Session Expired! Please search again.", show_alert: true }) });
+             return new Response("OK");
+          }
 
           const kv = env.BLACK_BULL_CINEMA;
           let searchKey = null;
@@ -260,16 +275,23 @@ export default {
 
         if (data.startsWith("watch_add_")) {
           const kv = env.BLACK_BULL_CINEMA;
-          const movieId = data.substring(10);
+          
+          const state = JSON.parse(await DB.get(STATE_KEY(chatId)) || "{}");
+          const movieId = state.lastMovie;
 
+          if (!movieId) {
+             await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ Session Expired! Please search again.", show_alert: true }) });
+             return new Response("OK");
+          }
+          
           let watchlistStr = await kv.get(`watch_${userId}`);
           let watchlist = watchlistStr ? JSON.parse(watchlistStr) : [];
           if (!watchlist.includes(movieId)) {
-            watchlist.push(movieId);
-            await kv.put(`watch_${userId}`, JSON.stringify(watchlist));
-            await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "✅ Added to your Watchlist!", show_alert: true }) });
+              watchlist.push(movieId);
+              await kv.put(`watch_${userId}`, JSON.stringify(watchlist));
+              await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "✅ Added to your Watchlist!", show_alert: true }) });
           } else {
-            await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ Already in your Watchlist!", show_alert: true }) });
+              await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ Already in your Watchlist!", show_alert: true }) });
           }
           return new Response("OK");
         }
