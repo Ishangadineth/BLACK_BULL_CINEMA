@@ -65,18 +65,29 @@ export default {
 
         // Check if the user who clicked is the same as the one who requested (for group chats)
         if (!isPrivate) {
-          const parts = data.split("|");
-          if (parts.length >= 3) {
-            const requesterId = parts[parts.length - 1];
-            if (requesterId !== String(cb.from.id)) {
-              const langCode = await getUserLang(cb.from.id, env);
-              const T = LANGS[langCode] || LANGS.si;
-              await fetch(`${TG_API}/answerCallbackQuery`, {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ callback_query_id: cb.id, text: T.wrong_user, show_alert: true })
-              });
-              return new Response("OK");
+          let isWrongUser = false;
+          
+          if (cb.message.reply_to_message) {
+            isWrongUser = String(cb.message.reply_to_message.from.id) !== String(cb.from.id);
+          } else {
+            // Fallback: only check callback_data if the button actually contains the userId at the end
+            if (data.startsWith("view_") || data.startsWith("filter_")) {
+              const parts = data.split("|");
+              if (parts.length >= 3) {
+                const reqId = parts[parts.length - 1];
+                if (reqId !== String(cb.from.id)) isWrongUser = true;
+              }
             }
+          }
+
+          if (isWrongUser) {
+            const langCode = await getUserLang(cb.from.id, env);
+            const T = LANGS[langCode] || LANGS.si;
+            await fetch(`${TG_API}/answerCallbackQuery`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ callback_query_id: cb.id, text: T.wrong_user, show_alert: true })
+            });
+            // Do not return. Allow the action to proceed while showing the alert.
           }
         }
         if (data.startsWith("check_sub_")) {
@@ -849,18 +860,6 @@ const LANGS = {
     expired: "⚠️ இந்த செய்தி காலாவதியாகிவிட்டது. மீண்டும் தேடவும்! 🔄"
   }
 };
-
-function formatSize(bytes) {
-  if (!bytes || bytes === 0) return "";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let size = bytes;
-  let unitIndex = 0;
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex++;
-  }
-  return `${size.toFixed(1)}${units[unitIndex]}`;
-}
 
 async function getUserLang(userId, env) {
   if (env.BLACK_BULL_CINEMA_LANG) {

@@ -428,15 +428,26 @@ async function handleCallback(cb, env, ctx) {
 
     // Check if the user who clicked is the same as the one who requested (for group chats)
     if (cb.message.chat.type !== "private") {
-      const parts = data.split("|");
-      if (parts.length >= 3) {
-        const requesterId = parts[parts.length - 1];
-        if (requesterId !== String(cb.from.id)) {
-          const langCode = await getUserLang(cb.from.id, env);
-          const T = LANGS[langCode] || LANGS.si;
-          await answerCallbackSafe([env.BOT_TOKEN_1], cb.id, T.wrong_user, true);
-          return;
+      let isWrongUser = false;
+      
+      if (cb.message.reply_to_message) {
+        isWrongUser = String(cb.message.reply_to_message.from.id) !== String(cb.from.id);
+      } else {
+        // Fallback: only check callback_data if the button actually contains the userId at the end
+        if (data.startsWith("view_") || data.startsWith("filter_")) {
+          const parts = data.split("|");
+          if (parts.length >= 3) {
+            const reqId = parts[parts.length - 1];
+            if (reqId !== String(cb.from.id)) isWrongUser = true;
+          }
         }
+      }
+
+      if (isWrongUser) {
+        const langCode = await getUserLang(cb.from.id, env);
+        const T = LANGS[langCode] || LANGS.si;
+        await answerCallbackSafe([env.BOT_TOKEN_1], cb.id, T.wrong_user, true);
+        // Do not return. Allow the action to proceed while showing the alert.
       }
     }
 
