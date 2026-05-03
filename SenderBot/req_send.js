@@ -151,7 +151,7 @@ export default {
           
           const newKb = {
              inline_keyboard: [
-                [{ text: "⏳ Please reply to THIS message with the image.", callback_data: "ignore" }],
+                [{ text: "⏳ Please send the image.", callback_data: "ignore" }],
                 [{ text: "🚫 Cancel", callback_data: `req_cancel_${targetUserId}_${query}` }]
              ]
           };
@@ -159,6 +159,14 @@ export default {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: newKb })
           });
+          
+          // Save state that we are waiting for an image for this request
+          await KV.put("waiting_for_req_img", JSON.stringify({
+            msgId: msgId,
+            targetUserId: targetUserId,
+            query: query
+          }));
+          
           await answerCallback(TG_API, cb.id);
           return new Response("OK");
         }
@@ -175,6 +183,14 @@ export default {
             body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: newKb })
           });
           await KV.delete(`req_img_${msgId}`); // Clean up any saved image
+          
+          // Check if this was the one waiting for an image and cancel it
+          const waitingDataStr = await KV.get("waiting_for_req_img");
+          if (waitingDataStr) {
+            const wData = JSON.parse(waitingDataStr);
+            if (wData.msgId === msgId) await KV.delete("waiting_for_req_img");
+          }
+          
           await answerCallback(TG_API, cb.id);
           return new Response("OK");
         }
@@ -263,37 +279,27 @@ export default {
         }
 
         // ── 1. Admin Group Image Attachment ──
-        if (chatId.toString() === ADMIN_GROUP && msg.reply_to_message && msg.photo) {
-          const repliedMsg = msg.reply_to_message;
-          const repliedMsgId = repliedMsg.message_id;
-          
-          // Check if the replied message is waiting for an image
-          let cancelBtn = null;
-          if (repliedMsg.reply_markup && repliedMsg.reply_markup.inline_keyboard) {
-             cancelBtn = repliedMsg.reply_markup.inline_keyboard.flat().find(btn => btn.callback_data && btn.callback_data.startsWith("req_cancel_"));
-          }
-          
-          if (cancelBtn) {
-            const photoId = msg.photo[msg.photo.length - 1].file_id;
-            await KV.put(`req_img_${repliedMsgId}`, photoId);
+        if (chatId.toString() === ADMIN_GROUP && msg.photo) {
+          const waitingDataStr = await KV.get("waiting_for_req_img");
+          if (waitingDataStr) {
+            const wData = JSON.parse(waitingDataStr);
+            await KV.delete("waiting_for_req_img"); // Only trigger once
             
-            // Edit the request message to show Confirm / Cancel
-            const parts = cancelBtn.callback_data.replace("req_cancel_", "").split("_");
-            const targetUserId = parts[0];
-            const query = parts.slice(1).join("_");
+            const photoId = msg.photo[msg.photo.length - 1].file_id;
+            await KV.put(`req_img_${wData.msgId}`, photoId);
             
             const newKb = {
                inline_keyboard: [
                   [{ text: "🖼 Image received. Confirm & Send?", callback_data: "ignore" }],
                   [
-                    { text: "✅ Confirm & Send", callback_data: `req_confirm_${targetUserId}_${query}` },
-                    { text: "🚫 Cancel", callback_data: cancelBtn.callback_data }
+                    { text: "✅ Confirm & Send", callback_data: `req_confirm_${wData.targetUserId}_${wData.query}` },
+                    { text: "🚫 Cancel", callback_data: `req_cancel_${wData.targetUserId}_${wData.query}` }
                   ]
                ]
             };
             await fetch(`${TG_API}/editMessageReplyMarkup`, {
               method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ chat_id: chatId, message_id: repliedMsgId, reply_markup: newKb })
+              body: JSON.stringify({ chat_id: chatId, message_id: wData.msgId, reply_markup: newKb })
             });
             
             // Delete admin's photo message to keep group clean
