@@ -122,25 +122,93 @@ export default {
         }
 
         else if (data.startsWith("req_complete_")) {
+          // This is the initial "NOT COMPLETE" button
           const parts = data.replace("req_complete_", "").split("_");
           const targetUserId = parts[0];
-          const query = parts.slice(1).join(" ");
+          const query = parts.slice(1).join("_");
+          
+          const newKb = {
+             inline_keyboard: [
+                [{ text: "📸 Do you have a post for this film?", callback_data: "ignore" }],
+                [
+                  { text: "✅ Yes", callback_data: `req_haspost_yes_${targetUserId}_${query}` },
+                  { text: "❌ No", callback_data: `req_haspost_no_${targetUserId}_${query}` }
+                ]
+             ]
+          };
+          await fetch(`${TG_API}/editMessageReplyMarkup`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: newKb })
+          });
+          await answerCallback(TG_API, cb.id);
+          return new Response("OK");
+        }
+        
+        else if (data.startsWith("req_haspost_yes_")) {
+          const parts = data.replace("req_haspost_yes_", "").split("_");
+          const targetUserId = parts[0];
+          const query = parts.slice(1).join("_");
+          
+          const newKb = {
+             inline_keyboard: [
+                [{ text: "⏳ Please reply to THIS message with the image.", callback_data: "ignore" }],
+                [{ text: "🚫 Cancel", callback_data: `req_cancel_${targetUserId}_${query}` }]
+             ]
+          };
+          await fetch(`${TG_API}/editMessageReplyMarkup`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: newKb })
+          });
+          await answerCallback(TG_API, cb.id);
+          return new Response("OK");
+        }
+        
+        else if (data.startsWith("req_cancel_")) {
+          const parts = data.replace("req_cancel_", "").split("_");
+          const targetUserId = parts[0];
+          const query = parts.slice(1).join("_");
+          
+          // Revert to the original NOT COMPLETE button
+          const newKb = { inline_keyboard: [[{ text: "🚫 NOT COMPLETE", callback_data: `req_complete_${targetUserId}_${query}` }]] };
+          await fetch(`${TG_API}/editMessageReplyMarkup`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: newKb })
+          });
+          await KV.delete(`req_img_${msgId}`); // Clean up any saved image
+          await answerCallback(TG_API, cb.id);
+          return new Response("OK");
+        }
+        
+        else if (data.startsWith("req_haspost_no_") || data.startsWith("req_confirm_")) {
+          // Both "No post" and "Confirm & Send" finalize the request to the user
+          const isConfirm = data.startsWith("req_confirm_");
+          const prefix = isConfirm ? "req_confirm_" : "req_haspost_no_";
+          const parts = data.replace(prefix, "").split("_");
+          const targetUserId = parts[0];
+          const query = parts.slice(1).join(" ").replace(/_/g, " "); // restore spaces
           
           const langCode = await getUserLang(LANG_KV, targetUserId);
           const T = LOCALES[langCode] || LOCALES.si;
 
-          // Check if there is a saved image for this request
-          const savedImg = await KV.get(`req_img_${msgId}`);
-          
           const userMsg = T.done_msg.replace("{query}", query);
 
-          if (savedImg) {
-            await fetch(`${TG_API}/sendPhoto`, {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ chat_id: targetUserId, photo: savedImg, caption: userMsg, parse_mode: "HTML" })
-            });
-            await KV.delete(`req_img_${msgId}`);
+          if (isConfirm) {
+            const savedImg = await KV.get(`req_img_${msgId}`);
+            if (savedImg) {
+              await fetch(`${TG_API}/sendPhoto`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id: targetUserId, photo: savedImg, caption: userMsg, parse_mode: "HTML" })
+              });
+              await KV.delete(`req_img_${msgId}`);
+            } else {
+              // Fallback if image missing
+              await fetch(`${TG_API}/sendMessage`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id: targetUserId, text: userMsg, parse_mode: "HTML" })
+              });
+            }
           } else {
+            // No image
             await fetch(`${TG_API}/sendMessage`, {
               method: "POST", headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ chat_id: targetUserId, text: userMsg, parse_mode: "HTML" })
@@ -199,12 +267,34 @@ export default {
           const repliedMsg = msg.reply_to_message;
           const repliedMsgId = repliedMsg.message_id;
           
-          // Check if the replied message is a request (has NOT COMPLETE button)
-          const hasButton = repliedMsg.reply_markup?.inline_keyboard?.some(row => row.some(btn => btn.callback_data.startsWith("req_complete_")));
+          // Check if the replied message is waiting for an image
+          let cancelBtn = null;
+          if (repliedMsg.reply_markup && repliedMsg.reply_markup.inline_keyboard) {
+             cancelBtn = repliedMsg.reply_markup.inline_keyboard.flat().find(btn => btn.callback_data && btn.callback_data.startsWith("req_cancel_"));
+          }
           
-          if (hasButton) {
+          if (cancelBtn) {
             const photoId = msg.photo[msg.photo.length - 1].file_id;
             await KV.put(`req_img_${repliedMsgId}`, photoId);
+            
+            // Edit the request message to show Confirm / Cancel
+            const parts = cancelBtn.callback_data.replace("req_cancel_", "").split("_");
+            const targetUserId = parts[0];
+            const query = parts.slice(1).join("_");
+            
+            const newKb = {
+               inline_keyboard: [
+                  [{ text: "🖼 Image received. Confirm & Send?", callback_data: "ignore" }],
+                  [
+                    { text: "✅ Confirm & Send", callback_data: `req_confirm_${targetUserId}_${query}` },
+                    { text: "🚫 Cancel", callback_data: cancelBtn.callback_data }
+                  ]
+               ]
+            };
+            await fetch(`${TG_API}/editMessageReplyMarkup`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chat_id: chatId, message_id: repliedMsgId, reply_markup: newKb })
+            });
             
             // Delete admin's photo message to keep group clean
             await fetch(`${TG_API}/deleteMessage`, {

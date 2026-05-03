@@ -661,13 +661,25 @@ export default {
                   const hasBeenReferred = await kvRef.get("referred_" + userId);
                   if (!hasBeenReferred) {
                     await kvRef.put("referred_" + userId, "true");
+                    
+                    // Give referrer 15 points
                     const refPoints = parseInt(await kvRef.get("pts_" + referrerId) || "0");
-                    await kvRef.put("pts_" + referrerId, (refPoints + 10).toString());
+                    await kvRef.put("pts_" + referrerId, (refPoints + 15).toString());
+                    
+                    // Give referred user 10 points
+                    const userPoints = parseInt(await kvRef.get("pts_" + userId) || "0");
+                    await kvRef.put("pts_" + userId, (userPoints + 10).toString());
                     
                     // Notify referrer
                     await fetch(`${TG_API}/sendMessage`, {
                       method: "POST", headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ chat_id: referrerId, text: "🎉 <b>Congratulations!</b>\nSomeone joined using your referral link. You received <b>10 Points</b>! 🎁", parse_mode: "HTML" })
+                      body: JSON.stringify({ chat_id: referrerId, text: "🎉 <b>Congratulations!</b>\nSomeone joined using your referral link. You received <b>15 Points</b>! 🎁", parse_mode: "HTML" })
+                    });
+                    
+                    // Notify referred user
+                    await fetch(`${TG_API}/sendMessage`, {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ chat_id: userId, text: "🎉 <b>Welcome Bonus!</b>\nYou joined via a referral link and received <b>10 Points</b>! 🎁", parse_mode: "HTML" })
                     });
                   }
                 }
@@ -727,7 +739,7 @@ export default {
           } catch (e) { }
 
           const refLink = `https://t.me/${botUser}?start=ref_${userId}`;
-          const msg = `🎁 <b>Referral Program</b>\n\nInvite your friends and earn points to bypass the download gateway! (10 Points per invite)\n\n⭐️ <b>Your Points:</b> ${currentPoints}\n\n🔗 <b>Your Invite Link:</b>\n<code>${refLink}</code>\n\n<i>Share this link with your friends to start earning!</i>`;
+          const msg = `🎁 <b>Referral Program</b>\n\nInvite your friends and earn points to bypass the download gateway! (You get 15 Points, they get 10 Points)\n\n⭐️ <b>Your Points:</b> ${currentPoints}\n\n🔗 <b>Your Invite Link:</b>\n<code>${refLink}</code>\n\n<i>Share this link with your friends to start earning!</i>`;
           
           await tgSend(TG_API, chatId, msg, [[{ text: "🔗 Share Link", url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent("Join this awesome movie bot!")}` }]]);
           return new Response("OK");
