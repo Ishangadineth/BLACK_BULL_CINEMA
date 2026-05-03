@@ -660,15 +660,28 @@ async function handleCallback(cb, env, ctx) {
         for (const token of bots) {
           const botUser = await getBotUsername(token);
           const keyboard = [];
+          
+          const kvRef = env.BLACKBULL_REF_POINT;
+          const currentPoints = kvRef ? parseInt(await kvRef.get("pts_" + cb.from.id) || "0") : 0;
+          
           for (const q of filteredQualities) {
             let sizeText = "";
             if (!movie.is_series && q.size) {
               sizeText = ` - ${formatSize(q.size)}`;
             }
-            keyboard.push([{ text: `📥 Download (${q.name})${sizeText}`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
+            
+            if (currentPoints >= 5) {
+              // Direct Deep Link via Points
+              const directToken = "tk_" + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+              if (kvRef) await kvRef.put(directToken, JSON.stringify({ f: q.q, u: cb.from.id, c: chatId, m: msgId }), { expirationTtl: 3600 });
+              keyboard.push([{ text: `📥 Download (${q.name})${sizeText} ⚡`, url: `https://t.me/${botUser}?start=${directToken}` }]);
+            } else {
+              // Standard Gateway
+              keyboard.push([{ text: `📥 Download (${q.name})${sizeText}`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
+            }
           }
           const safeQuery = originalQuery ? originalQuery.substring(0, 15) : "";
-        keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${safeQuery}` }]);
+          keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${safeQuery}` }]);
 
           const res = await fetch(`https://api.telegram.org/bot${token}/editMessageCaption`, {
             method: "POST", headers: { "Content-Type": "application/json" },
@@ -941,6 +954,50 @@ async function handleStartCommand(chatId, payload, env, bots) {
     await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "❌ <b>Database Error:</b> File database not connected.", parse_mode: "HTML" }) });
     return;
   }
+
+  // ── One-Time Token Handling (Point System) ──
+  if (payload.startsWith("tk_")) {
+    const kvRef = env.BLACKBULL_REF_POINT;
+    if (!kvRef) {
+      const tgApiUrl = `https://api.telegram.org/bot${bots[0]}/sendMessage`;
+      await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "❌ Referral Point KV Namespace not bound!", parse_mode: "HTML" }) });
+      return;
+    }
+    const tokenDataStr = await kvRef.get(payload);
+    if (!tokenDataStr) {
+      const tgApiUrl = `https://api.telegram.org/bot${bots[0]}/sendMessage`;
+      await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "⚠️ <b>Invalid or expired link!</b>\nPlease search for the movie again and generate a new link.", parse_mode: "HTML" }) });
+      return;
+    }
+    const tokenData = JSON.parse(tokenDataStr);
+    
+    if (String(tokenData.u) !== String(chatId)) {
+      const tgApiUrl = `https://api.telegram.org/bot${bots[0]}/sendMessage`;
+      await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "❌ <b>This link was not generated for you!</b>", parse_mode: "HTML" }) });
+      return;
+    }
+    
+    const currentPoints = parseInt(await kvRef.get("pts_" + chatId) || "0");
+    if (currentPoints < 5) {
+      const tgApiUrl = `https://api.telegram.org/bot${bots[0]}/sendMessage`;
+      await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "⚠️ <b>You don't have enough points (5 points required).</b>\nPlease use the normal Gateway to download.", parse_mode: "HTML" }) });
+      return;
+    }
+    
+    // Deduct points, delete token, delete original group message
+    await kvRef.put("pts_" + chatId, (currentPoints - 5).toString());
+    await kvRef.delete(payload);
+    if (tokenData.c && tokenData.m) {
+      await fetch(`https://api.telegram.org/bot${bots[0]}/deleteMessage`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: tokenData.c, message_id: tokenData.m })
+      }).catch(() => {});
+    }
+    
+    // Override payload to the actual file ID from token
+    payload = tokenData.f;
+  }
+  // ── End Token Handling ──
 
   const fileKey = payload;
   const fileDataStr = await env.BLACK_BULL_CINEMA_FILEID.get(fileKey);

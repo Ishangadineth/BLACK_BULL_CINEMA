@@ -598,6 +598,84 @@ export default {
           const payloadCmd = text.split(" ")[1];
           if (payloadCmd) {
 
+            // ── One-Time Token Handling ──
+            if (payloadCmd.startsWith("tk_")) {
+              const kvRef = env.BLACKBULL_REF_POINT;
+              if (!kvRef) {
+                await tgSend(TG_API, chatId, "❌ Referral Point KV Namespace (BLACKBULL_REF_POINT) not bound!", []);
+                return new Response("OK");
+              }
+              const tokenDataStr = await kvRef.get(payloadCmd);
+              if (!tokenDataStr) {
+                await tgSend(TG_API, chatId, "⚠️ <b>Invalid or expired link!</b>\nPlease search for the movie again and generate a new link.", []);
+                return new Response("OK");
+              }
+              const tokenData = JSON.parse(tokenDataStr);
+              
+              if (String(tokenData.u) !== String(userId)) {
+                await tgSend(TG_API, chatId, "❌ <b>This link was not generated for you!</b>", []);
+                return new Response("OK");
+              }
+              
+              const currentPoints = parseInt(await kvRef.get("pts_" + userId) || "0");
+              if (currentPoints < 5) {
+                await tgSend(TG_API, chatId, "⚠️ <b>You don't have enough points (5 points required).</b>\nPlease use the normal Gateway to download.", []);
+                return new Response("OK");
+              }
+              
+              // Deduct points, delete token, delete original group message
+              await kvRef.put("pts_" + userId, (currentPoints - 5).toString());
+              await kvRef.delete(payloadCmd);
+              if (tokenData.c && tokenData.m) {
+                await fetch(`${TG_API}/deleteMessage`, {
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ chat_id: tokenData.c, message_id: tokenData.m })
+                }).catch(() => {});
+              }
+              
+              // Send the file
+              const kvFiles = env.BLACK_BULL_CINEMA_FILEID;
+              if (kvFiles) {
+                 const filesStr = await kvFiles.get(tokenData.f);
+                 if (filesStr) {
+                   try {
+                     const files = JSON.parse(filesStr);
+                     const fileArray = Array.isArray(files) ? files : [files];
+                     for (let i = 0; i < fileArray.length; i++) {
+                       const file = fileArray[i];
+                       await sendMovieFile(TG_API, chatId, file.id, file.type, file.caption || "", DB_CHANNEL);
+                     }
+                   } catch(e) {}
+                 }
+              }
+              return new Response("OK");
+            }
+            
+            // ── Referral System Handling ──
+            if (payloadCmd.startsWith("ref_")) {
+              const referrerId = payloadCmd.substring(4);
+              if (referrerId !== String(userId)) {
+                const kvRef = env.BLACKBULL_REF_POINT;
+                if (kvRef) {
+                  // Check if this user has already been referred before to prevent abuse
+                  const hasBeenReferred = await kvRef.get("referred_" + userId);
+                  if (!hasBeenReferred) {
+                    await kvRef.put("referred_" + userId, "true");
+                    const refPoints = parseInt(await kvRef.get("pts_" + referrerId) || "0");
+                    await kvRef.put("pts_" + referrerId, (refPoints + 10).toString());
+                    
+                    // Notify referrer
+                    await fetch(`${TG_API}/sendMessage`, {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ chat_id: referrerId, text: "🎉 <b>Congratulations!</b>\nSomeone joined using your referral link. You received <b>10 Points</b>! 🎁", parse_mode: "HTML" })
+                    });
+                  }
+                }
+              }
+              await sendWelcomeMessage(TG_API, BOT_TOKEN, chatId, userId, env);
+              return new Response("OK");
+            }
+
             // FORCE SUB CHECK
             const isSubbed = await checkForceSub(BOT_TOKEN, userId);
             if (!isSubbed) {
@@ -636,6 +714,23 @@ export default {
               await sendWelcomeMessage(TG_API, BOT_TOKEN, chatId, userId, env);
             }
           }
+        }
+        else if (text === "/ref" && isPrivate) {
+          const kvRef = env.BLACKBULL_REF_POINT;
+          const currentPoints = kvRef ? parseInt(await kvRef.get("pts_" + userId) || "0") : 0;
+          
+          let botUser = "Unknown_Bot";
+          try {
+            const bRes = await fetch(`${TG_API}/getMe`);
+            const bData = await bRes.json();
+            if (bData.ok) botUser = bData.result.username;
+          } catch (e) { }
+
+          const refLink = `https://t.me/${botUser}?start=ref_${userId}`;
+          const msg = `🎁 <b>Referral Program</b>\n\nInvite your friends and earn points to bypass the download gateway! (10 Points per invite)\n\n⭐️ <b>Your Points:</b> ${currentPoints}\n\n🔗 <b>Your Invite Link:</b>\n<code>${refLink}</code>\n\n<i>Share this link with your friends to start earning!</i>`;
+          
+          await tgSend(TG_API, chatId, msg, [[{ text: "🔗 Share Link", url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent("Join this awesome movie bot!")}` }]]);
+          return new Response("OK");
         }
         else if (text === "/watchlist" && isPrivate) {
           const kv = env.BLACK_BULL_CINEMA;
