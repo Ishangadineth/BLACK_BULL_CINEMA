@@ -191,6 +191,32 @@ async function handleMessage(msg, env, ctx) {
   const botIndex = msgId % bots.length;
   const selectedToken = bots[botIndex];
 
+  if (msg.chat.type === "group" || msg.chat.type === "supergroup") {
+    const isSubbed = await checkGroupForceSub(selectedToken, msg.from.id);
+    if (!isSubbed) {
+      const langCode = await getUserLang(msg.from.id, env);
+      const T = LANGS[langCode] || LANGS.si;
+      const kb = { inline_keyboard: [[{ text: T.ch_btn || "📢 Channel", url: "https://t.me/BLACKBULLCINEMA" }]] };
+      
+      const res = await fetch(`https://api.telegram.org/bot${selectedToken}/sendMessage`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text: T.group_force_sub || "Join channel to search", parse_mode: "HTML", reply_markup: kb })
+      });
+      const data = await res.json();
+      if (data.ok && ctx) {
+        const nfMsgId = data.result.message_id;
+        ctx.waitUntil((async () => {
+          await new Promise(r => setTimeout(r, 25000));
+          await fetch(`https://api.telegram.org/bot${selectedToken}/deleteMessage`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, message_id: nfMsgId })
+          }).catch(() => {});
+        })());
+      }
+      return;
+    }
+  }
+
   const results = await searchMovieInKV(text, env.BLACK_BULL_CINEMA);
 
   // Async log search to KV for Dashboard Analytics
@@ -408,7 +434,8 @@ async function handleCallback(cb, env, ctx) {
         if (requesterId !== String(cb.from.id)) {
           const langCode = await getUserLang(cb.from.id, env);
           const T = LANGS[langCode] || LANGS.si;
-          await answerCallbackSafe(bots, cb.id, T.wrong_user, true);
+          await answerCallbackSafe([env.BOT_TOKEN_1], cb.id, T.wrong_user, true);
+          return;
         }
       }
     }
@@ -970,7 +997,8 @@ const LANGS = {
     ch_btn: "📢 Official Channel",
     gp_btn: "💬 ප්‍රධාන ගෲප් එක",
     wrong_user: "මේ ඔයා ඉල්ලපු එක නෙවේ🧐",
-    expired: "⚠️ මෙම පණිවිඩය කල් ඉකුත් වී ඇත. කරුණාකර නැවත Search කරන්න! 🔄"
+    expired: "⚠️ මෙම පණිවිඩය කල් ඉකුත් වී ඇත. කරුණාකර නැවත Search කරන්න! 🔄",
+    group_force_sub: "❌ <b>ඔයා අපේ Main Channel එකට Join වෙලා නෑ!</b>\n\nඔයාට ඕනි films/series හොයාගන්න ඕනි නම් පහල channel එකට join වෙලා එන්න. 👇"
   },
   en: {
     hello: "👋 Hello {name},\n\nCheck if the movie '<b>{query}</b>' you are looking for is here.. 👇\n\n📌 <i>If you are looking for a series, tap the 'Series' button to filter.</i>",
@@ -988,7 +1016,8 @@ const LANGS = {
     ch_btn: "📢 Official Channel",
     gp_btn: "💬 Main Group",
     wrong_user: "That wasn't requested by you! 🧐",
-    expired: "⚠️ This message has expired. Please search again! 🔄"
+    expired: "⚠️ This message has expired. Please search again! 🔄",
+    group_force_sub: "❌ <b>You haven't joined our Main Channel!</b>\n\nTo search for movies/series, please join our channel below. 👇"
   },
   hi: {
     hello: "👋 नमस्ते {name},\n\nजांचें कि आप जिस फिल्म '<b>{query}</b>' की तलाश कर रहे हैं वह यहां है या नहीं.. 👇\n\n📌 <i>यदि आप कोई श्रृंखला ढूंढ रहे हैं, तो 'Series' बटन पर टैप करें।</i>",
@@ -1006,7 +1035,8 @@ const LANGS = {
     ch_btn: "📢 Official Channel",
     gp_btn: "💬 मुख्य समूह",
     wrong_user: "यह आपके द्वारा अनुरोधित नहीं किया गया था! 🧐",
-    expired: "⚠️ यह संदेश समाप्त हो गया है। कृपया फिर से खोजें! 🔄"
+    expired: "⚠️ यह संदेश समाप्त हो गया है। कृपया फिर से खोजें! 🔄",
+    group_force_sub: "❌ <b>आप हमारे मुख्य चैनल में शामिल नहीं हुए हैं!</b>\n\nफिल्में/श्रृंखला खोजने के लिए, कृपया नीचे दिए गए चैनल से जुड़ें। 👇"
   },
   es: {
     hello: "👋 Hola {name},\n\nComprueba si la película '<b>{query}</b>' que buscas está aquí.. 👇\n\n📌 <i>Si buscas una serie, toca el botón 'Series'.</i>",
@@ -1024,7 +1054,8 @@ const LANGS = {
     ch_btn: "📢 Official Channel",
     gp_btn: "💬 Grupo principal",
     wrong_user: "¡Eso no fue solicitado por ti! 🧐",
-    expired: "⚠️ Este mensaje ha caducado. ¡Vuelve a buscar! 🔄"
+    expired: "⚠️ Este mensaje ha caducado. ¡Vuelve a buscar! 🔄",
+    group_force_sub: "❌ <b>¡No te has unido a nuestro canal principal!</b>\n\nPara buscar películas/series, únete a nuestro canal a continuación. 👇"
   },
   ta: {
     hello: "👋 வணக்கம் {name},\n\nநீங்கள் தேடும் '<b>{query}</b>' திரைப்படம் இங்கே உள்ளதா என்று பார்க்கவும்.. 👇\n\n📌 <i>நீங்கள் ஒரு தொடரை தேடுகிறீர்கள் என்றால், 'Series' பொத்தானை அழுத்தவும்.</i>",
@@ -1042,7 +1073,8 @@ const LANGS = {
     ch_btn: "📢 Official Channel",
     gp_btn: "💬 முக்கிய குழு",
     wrong_user: "இது உங்களால் கோரப்படவில்லை! 🧐",
-    expired: "⚠️ இந்த செய்தி காலாவதியாகிவிட்டது. மீண்டும் தேடவும்! 🔄"
+    expired: "⚠️ இந்த செய்தி காலாவதியாகிவிட்டது. மீண்டும் தேடவும்! 🔄",
+    group_force_sub: "❌ <b>எங்கள் முக்கிய சேனலில் நீங்கள் சேரவில்லை!</b>\n\nதிரைப்படங்கள்/தொடர்களைத் தேட, கீழே உள்ள எங்கள் சேனலில் சேரவும். 👇"
   }
 };
 
@@ -1052,6 +1084,19 @@ async function getUserLang(userId, env) {
     if (lang && LANGS[lang]) return lang;
   }
   return "si";
+}
+
+async function checkGroupForceSub(botToken, userId) {
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/getChatMember?chat_id=-1003999803362&user_id=${userId}`);
+    const data = await res.json();
+    if (!data.ok || ["left", "kicked"].includes(data.result.status)) {
+      return false;
+    }
+  } catch (e) {
+    return false;
+  }
+  return true;
 }
 
 async function getChannelLink(botToken, channelId, kv) {

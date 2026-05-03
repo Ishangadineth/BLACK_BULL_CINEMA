@@ -75,6 +75,7 @@ export default {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ callback_query_id: cb.id, text: T.wrong_user, show_alert: true })
               });
+              return new Response("OK");
             }
           }
         }
