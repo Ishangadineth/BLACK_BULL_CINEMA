@@ -850,6 +850,18 @@ const LANGS = {
   }
 };
 
+function formatSize(bytes) {
+  if (!bytes || bytes === 0) return "";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex++;
+  }
+  return `${size.toFixed(1)}${units[unitIndex]}`;
+}
+
 async function getUserLang(userId, env) {
   if (env.BLACK_BULL_CINEMA_LANG) {
     const lang = await env.BLACK_BULL_CINEMA_LANG.get(`lang_${userId}`);
