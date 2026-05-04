@@ -277,9 +277,6 @@ export default {
             const currentPoints = kvRef ? parseInt(await kvRef.get("pts_" + userId) || "0") : 0;
 
             const keyboard = [];
-            // Load state to save qMap
-            const currentState = JSON.parse(await DB.get(STATE_KEY(chatId)) || "{}");
-            if (!currentState.qMap) currentState.qMap = {};
 
             for (let i = 0; i < filteredQualities.length; i++) {
               const q = filteredQualities[i];
@@ -289,14 +286,13 @@ export default {
               }
               
               if (currentPoints >= 5) {
-                currentState.qMap[i] = q.q;
-                keyboard.push([{ text: `📥 Download (${q.name})${sizeText} ⚡`, callback_data: `dget_${i}` }]);
+                const directToken = "tk_" + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+                if (kvRef) await kvRef.put(directToken, JSON.stringify({ f: q.q, u: userId, c: chatId, m: msgId }), { expirationTtl: 3600 });
+                keyboard.push([{ text: `📥 Download (${q.name})${sizeText} ⚡`, url: `https://t.me/${botUser}?start=${directToken}` }]);
               } else {
                 keyboard.push([{ text: `📥 Download (${q.name})${sizeText}`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
               }
             }
-            
-            await DB.put(STATE_KEY(chatId), JSON.stringify(currentState));
 
             if (movie.trailer) {
               keyboard.push([{ text: "🎬 Watch Trailer", url: movie.trailer }]);
@@ -310,41 +306,6 @@ export default {
               method: "POST", headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } })
             });
-          }
-          return new Response("OK");
-        }
-
-        if (data.startsWith("dget_")) {
-          const index = data.substring(5);
-          const state = JSON.parse(await DB.get(STATE_KEY(chatId)) || "{}");
-          const fileKey = state.qMap ? state.qMap[index] : null;
-
-          if (!fileKey) {
-            await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ Session Expired! Please search again.", show_alert: true }) });
-            return new Response("OK");
-          }
-
-          const kvRef = env.BLACKBULL_REF_POINT;
-          const currentPoints = kvRef ? parseInt(await kvRef.get("pts_" + userId) || "0") : 0;
-          
-          if (currentPoints < 5) {
-            await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ You don't have enough points (5 required).", show_alert: true }) });
-            return new Response("OK");
-          }
-
-          await kvRef.put("pts_" + userId, (currentPoints - 5).toString());
-          await answerCallback(TG_API, cb.id, "✅ Points deducted. Sending file...");
-          
-          const kvFiles = env.BLACK_BULL_CINEMA_FILEID;
-          const filesStr = await kvFiles.get(fileKey);
-          if (filesStr) {
-             try {
-               const files = JSON.parse(filesStr);
-               const fileArray = Array.isArray(files) ? files : [files];
-               for (const file of fileArray) {
-                 await sendMovieFile(TG_API, chatId, file.id, file.type, file.caption || "", DB_CHANNEL);
-               }
-             } catch(e) {}
           }
           return new Response("OK");
         }
