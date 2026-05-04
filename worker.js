@@ -1043,9 +1043,13 @@ async function handleStartCommand(chatId, payload, env, bots) {
       return;
     }
 
+    let deductedPoints = null;
+    
     // Deduct points and delete token
-    await kvRef.put("pts_" + chatId, (currentPoints - 5).toString());
+    const remainingPoints = currentPoints - 5;
+    await kvRef.put("pts_" + chatId, remainingPoints.toString());
     await kvRef.delete(payload);
+    deductedPoints = remainingPoints;
 
     // Override payload to the actual file ID from token
     payload = tokenData.f;
@@ -1093,6 +1097,20 @@ async function handleStartCommand(chatId, payload, env, bots) {
     await fetch(tgApiUrl, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestPayload)
+    });
+  }
+
+  if (deductedPoints !== null) {
+    const refBotToken = bots.length > 1 ? bots[1] : bots[0];
+    const refBotUser = await getBotUsername(refBotToken);
+    const validBotUser = refBotUser !== "UnknownBot" ? refBotUser : "Sofia_BLACKBULL_bot";
+    
+    const deductMsg = `✅ ඔයාගේ points 5 ක් අඩු උනා.\nතව points ${deductedPoints} ක් තියෙනවා films/series direct download කරගන්න. 🎁`;
+    const kb = { inline_keyboard: [[{ text: "🔗 Earn More Points", url: `https://t.me/${validBotUser}?start=ref` }]] };
+    
+    await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: deductMsg, reply_markup: kb, parse_mode: "HTML" })
     });
   }
 }
