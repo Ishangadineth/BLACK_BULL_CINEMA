@@ -642,15 +642,9 @@ export default {
                 return new Response("OK");
               }
               
-              // Deduct points, delete token, delete original group message
+              // Deduct points and delete token
               await kvRef.put("pts_" + userId, (currentPoints - 5).toString());
               await kvRef.delete(payloadCmd);
-              if (tokenData.c && tokenData.m) {
-                await fetch(`${TG_API}/deleteMessage`, {
-                  method: "POST", headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ chat_id: tokenData.c, message_id: tokenData.m })
-                }).catch(() => {});
-              }
               
               // Send the file
               const kvFiles = env.BLACK_BULL_CINEMA_FILEID;

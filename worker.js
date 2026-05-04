@@ -1033,15 +1033,9 @@ async function handleStartCommand(chatId, payload, env, bots) {
       return;
     }
     
-    // Deduct points, delete token, delete original group message
+    // Deduct points and delete token
     await kvRef.put("pts_" + chatId, (currentPoints - 5).toString());
     await kvRef.delete(payload);
-    if (tokenData.c && tokenData.m) {
-      await fetch(`https://api.telegram.org/bot${bots[0]}/deleteMessage`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: tokenData.c, message_id: tokenData.m })
-      }).catch(() => {});
-    }
     
     // Override payload to the actual file ID from token
     payload = tokenData.f;
