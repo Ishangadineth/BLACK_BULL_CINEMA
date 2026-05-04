@@ -66,7 +66,7 @@ export default {
         // Check if the user who clicked is the same as the one who requested (for group chats)
         if (!isPrivate) {
           let isWrongUser = false;
-          
+
           if (cb.message.reply_to_message) {
             isWrongUser = String(cb.message.reply_to_message.from.id) !== String(cb.from.id);
           } else {
@@ -187,10 +187,10 @@ export default {
           let searchKey = null;
           if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
           if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
-          
+
           if (!searchKey) {
-             const list = await kv.list({ prefix: `idx_${movieId}` });
-             if (list.keys.length > 0) searchKey = await kv.get(list.keys[0].name);
+            const list = await kv.list({ prefix: `idx_${movieId}` });
+            if (list.keys.length > 0) searchKey = await kv.get(list.keys[0].name);
           }
 
           if (searchKey) {
@@ -202,7 +202,7 @@ export default {
 
               const availableCats = [...new Set(movie.qualities.map(q => q.cat || "Other"))].sort();
               const keyboard = [];
-              
+
               // Save context to DB state to avoid 64-byte limit
               const state = JSON.parse(await DB.get(STATE_KEY(chatId)) || "{}");
               state.lastMovie = movieId;
@@ -246,18 +246,18 @@ export default {
           const originalQuery = state.lastQuery || "";
 
           if (!movieId) {
-             await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ Session Expired! Please search again.", show_alert: true }) });
-             return new Response("OK");
+            await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ Session Expired! Please search again.", show_alert: true }) });
+            return new Response("OK");
           }
 
           const kv = env.BLACK_BULL_CINEMA;
           let searchKey = null;
           if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
           if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
-          
+
           if (!searchKey) {
-             const list = await kv.list({ prefix: `idx_${movieId}` });
-             if (list.keys.length > 0) searchKey = await kv.get(list.keys[0].name);
+            const list = await kv.list({ prefix: `idx_${movieId}` });
+            if (list.keys.length > 0) searchKey = await kv.get(list.keys[0].name);
           }
 
           if (searchKey) {
@@ -284,7 +284,7 @@ export default {
               if (!movie.is_series && q.size) {
                 sizeText = ` - ${formatSize(q.size)}`;
               }
-              
+
               if (currentPoints >= 5) {
                 const directToken = "tk_" + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
                 if (kvRef) await kvRef.put(directToken, JSON.stringify({ f: q.q, u: userId, c: chatId, m: msgId }), { expirationTtl: 3600 });
@@ -332,23 +332,23 @@ export default {
 
         if (data.startsWith("watch_add_")) {
           const kv = env.BLACK_BULL_CINEMA;
-          
+
           const state = JSON.parse(await DB.get(STATE_KEY(chatId)) || "{}");
           const movieId = state.lastMovie;
 
           if (!movieId) {
-             await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ Session Expired! Please search again.", show_alert: true }) });
-             return new Response("OK");
+            await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ Session Expired! Please search again.", show_alert: true }) });
+            return new Response("OK");
           }
-          
+
           let watchlistStr = await kv.get(`watch_${userId}`);
           let watchlist = watchlistStr ? JSON.parse(watchlistStr) : [];
           if (!watchlist.includes(movieId)) {
-              watchlist.push(movieId);
-              await kv.put(`watch_${userId}`, JSON.stringify(watchlist));
-              await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "✅ Added to your Watchlist!", show_alert: true }) });
+            watchlist.push(movieId);
+            await kv.put(`watch_${userId}`, JSON.stringify(watchlist));
+            await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "✅ Added to your Watchlist!", show_alert: true }) });
           } else {
-              await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ Already in your Watchlist!", show_alert: true }) });
+            await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id, text: "⚠️ Already in your Watchlist!", show_alert: true }) });
           }
           return new Response("OK");
         }
@@ -630,40 +630,40 @@ export default {
                 return new Response("OK");
               }
               const tokenData = JSON.parse(tokenDataStr);
-              
+
               if (String(tokenData.u) !== String(userId)) {
                 await tgSend(TG_API, chatId, "❌ <b>This link was not generated for you!</b>", []);
                 return new Response("OK");
               }
-              
+
               const currentPoints = parseInt(await kvRef.get("pts_" + userId) || "0");
               if (currentPoints < 5) {
                 await tgSend(TG_API, chatId, "⚠️ <b>You don't have enough points (5 points required).</b>\nPlease use the normal Gateway to download.", []);
                 return new Response("OK");
               }
-              
+
               // Deduct points and delete token
               await kvRef.put("pts_" + userId, (currentPoints - 5).toString());
               await kvRef.delete(payloadCmd);
-              
+
               // Send the file
               const kvFiles = env.BLACK_BULL_CINEMA_FILEID;
               if (kvFiles) {
-                 const filesStr = await kvFiles.get(tokenData.f);
-                 if (filesStr) {
-                   try {
-                     const files = JSON.parse(filesStr);
-                     const fileArray = Array.isArray(files) ? files : [files];
-                     for (let i = 0; i < fileArray.length; i++) {
-                       const file = fileArray[i];
-                       await sendMovieFile(TG_API, chatId, file.id, file.type, file.caption || "", DB_CHANNEL);
-                     }
-                   } catch(e) {}
-                 }
+                const filesStr = await kvFiles.get(tokenData.f);
+                if (filesStr) {
+                  try {
+                    const files = JSON.parse(filesStr);
+                    const fileArray = Array.isArray(files) ? files : [files];
+                    for (let i = 0; i < fileArray.length; i++) {
+                      const file = fileArray[i];
+                      await sendMovieFile(TG_API, chatId, file.id, file.type, file.caption || "", DB_CHANNEL);
+                    }
+                  } catch (e) { }
+                }
               }
               return new Response("OK");
             }
-            
+
             // ── Referral System Handling ──
             if (payloadCmd.startsWith("ref_")) {
               const referrerId = payloadCmd.substring(4);
@@ -674,21 +674,28 @@ export default {
                   const hasBeenReferred = await kvRef.get("referred_" + userId);
                   if (!hasBeenReferred) {
                     await kvRef.put("referred_" + userId, "true");
-                    
+
                     // Give referrer 15 points
                     const refPoints = parseInt(await kvRef.get("pts_" + referrerId) || "0");
                     await kvRef.put("pts_" + referrerId, (refPoints + 15).toString());
-                    
+
                     // Give referred user 10 points
                     const userPoints = parseInt(await kvRef.get("pts_" + userId) || "0");
                     await kvRef.put("pts_" + userId, (userPoints + 10).toString());
-                    
+
+                    // Save referral info
+                    const refListStr = await kvRef.get("myrefs_" + referrerId);
+                    const refList = refListStr ? JSON.parse(refListStr) : [];
+                    const userFirstName = msg.from.first_name || "User";
+                    refList.push({ id: userId, name: userFirstName, date: new Date().toISOString() });
+                    await kvRef.put("myrefs_" + referrerId, JSON.stringify(refList));
+
                     // Notify referrer
                     await fetch(`${TG_API}/sendMessage`, {
                       method: "POST", headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ chat_id: referrerId, text: "🎉 <b>Congratulations!</b>\nSomeone joined using your referral link. You received <b>15 Points</b>! 🎁", parse_mode: "HTML" })
                     });
-                    
+
                     // Notify referred user
                     await fetch(`${TG_API}/sendMessage`, {
                       method: "POST", headers: { "Content-Type": "application/json" },
@@ -743,7 +750,7 @@ export default {
         else if (text === "/ref" && isPrivate) {
           const kvRef = env.BLACKBULL_REF_POINT;
           const currentPoints = kvRef ? parseInt(await kvRef.get("pts_" + userId) || "0") : 0;
-          
+
           let botUser = "Unknown_Bot";
           try {
             const bRes = await fetch(`${TG_API}/getMe`);
@@ -753,8 +760,29 @@ export default {
 
           const refLink = `https://t.me/${botUser}?start=ref_${userId}`;
           const msg = `🎁 <b>Referral Program</b>\n\nInvite your friends and earn points to bypass the download gateway! (You get 15 Points, they get 10 Points)\n\n⭐️ <b>Your Points:</b> ${currentPoints}\n\n🔗 <b>Your Invite Link:</b>\n<code>${refLink}</code>\n\n<i>Share this link with your friends to start earning!</i>`;
-          
+
           await tgSend(TG_API, chatId, msg, [[{ text: "🔗 Share Link", url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent("Join this awesome movie bot!")}` }]]);
+          return new Response("OK");
+        }
+        else if (text === "/ref list" && isPrivate) {
+          const kvRef = env.BLACKBULL_REF_POINT;
+          if (!kvRef) return new Response("OK");
+          const refListStr = await kvRef.get("myrefs_" + userId);
+          const refList = refListStr ? JSON.parse(refListStr) : [];
+          
+          if (refList.length === 0) {
+            await tgSend(TG_API, chatId, "📝 <b>You haven't referred anyone yet!</b>\nUse /ref to get your link and invite friends.", []);
+            return new Response("OK");
+          }
+
+          let msgText = `👥 <b>Your Referrals (${refList.length})</b>\n\n`;
+          refList.slice(-30).reverse().forEach((r, idx) => {
+             const date = new Date(r.date).toISOString().split('T')[0];
+             msgText += `${idx + 1}. <a href="tg://user?id=${r.id}">${r.name}</a> (<code>${r.id}</code>) - ${date}\n`;
+          });
+          if (refList.length > 30) msgText += `\n<i>...and ${refList.length - 30} more.</i>`;
+
+          await tgSend(TG_API, chatId, msgText, []);
           return new Response("OK");
         }
         else if (text === "/watchlist" && isPrivate) {
