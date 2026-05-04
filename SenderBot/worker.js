@@ -378,9 +378,19 @@ export default {
             ]
           };
 
-          const res = await fetch(`${TG_API}/editMessageCaption`, {
+          await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id }) }).catch(() => {});
+          const isPhoto = !!(cb.message.photo || cb.message.video || cb.message.document);
+          let apiUrl = `${TG_API}/editMessageText`;
+          let payload = { chat_id: chatId, message_id: msgId, text: reqText, parse_mode: "HTML", reply_markup: kb };
+
+          if (isPhoto) {
+            apiUrl = `${TG_API}/editMessageCaption`;
+            payload = { chat_id: chatId, message_id: msgId, caption: reqText, parse_mode: "HTML", reply_markup: kb };
+          }
+
+          const res = await fetch(apiUrl, {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: reqText, reply_markup: kb })
+            body: JSON.stringify(payload)
           });
           const resData = await res.json();
           if (resData.ok && ctx) {
@@ -406,9 +416,19 @@ export default {
             ]]
           };
 
-          const res = await fetch(`${TG_API}/editMessageCaption`, {
+          await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id }) }).catch(() => {});
+          const isPhoto = !!(cb.message.photo || cb.message.video || cb.message.document);
+          let apiUrl = `${TG_API}/editMessageText`;
+          let payload = { chat_id: chatId, message_id: msgId, text: askText, parse_mode: "HTML", reply_markup: kb };
+
+          if (isPhoto) {
+            apiUrl = `${TG_API}/editMessageCaption`;
+            payload = { chat_id: chatId, message_id: msgId, caption: askText, parse_mode: "HTML", reply_markup: kb };
+          }
+
+          const res = await fetch(apiUrl, {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: askText, reply_markup: kb })
+            body: JSON.stringify(payload)
           });
           const resData = await res.json();
           if (resData.ok && ctx) {

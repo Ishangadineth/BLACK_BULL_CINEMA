@@ -12,10 +12,10 @@ const botUsernamesCache = {}; // Global Cache for Performance
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    
+
     // ── Web Dashboard Routing ──
     if (url.pathname.startsWith('/admin')) {
-        return handleDashboardRequest(request, env);
+      return handleDashboardRequest(request, env);
     }
 
     if (request.method !== "POST") return new Response("Black Bull Cinema Manager Active ✅");
@@ -93,7 +93,7 @@ async function handleMessage(msg, env, ctx) {
         await fetch(`https://api.telegram.org/bot${bots[0]}/deleteMessage`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ chat_id: chatId, message_id: lid })
-        }).catch(() => {});
+        }).catch(() => { });
       })());
     }
     return;
@@ -127,7 +127,7 @@ async function handleMessage(msg, env, ctx) {
         await fetch(`https://api.telegram.org/bot${bots[0]}/deleteMessage`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ chat_id: chatId, message_id: lid })
-        }).catch(() => {});
+        }).catch(() => { });
       })());
     }
     return;
@@ -136,7 +136,7 @@ async function handleMessage(msg, env, ctx) {
   if (text === "/watchlist") {
     let watchlistStr = await env.BLACK_BULL_CINEMA.get(`watch_${chatId}`);
     let watchlist = watchlistStr ? JSON.parse(watchlistStr) : [];
-    
+
     if (watchlist.length === 0) {
       await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -161,7 +161,7 @@ async function handleMessage(msg, env, ctx) {
     }
 
     if (keyboard.length === 0) {
-       await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
+      await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chat_id: chatId, text: "📝 <b>No valid movies found in your Watchlist.</b>", parse_mode: "HTML" })
       });
@@ -185,7 +185,7 @@ async function handleMessage(msg, env, ctx) {
     const hasEmoji = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/.test(text);
     const hasLocation = !!msg.location;
 
-    if (hasUrl || hasEmoji || hasLocation) return; 
+    if (hasUrl || hasEmoji || hasLocation) return;
   }
 
   const botIndex = msgId % bots.length;
@@ -197,7 +197,7 @@ async function handleMessage(msg, env, ctx) {
       const langCode = await getUserLang(msg.from.id, env);
       const T = LANGS[langCode] || LANGS.si;
       const kb = { inline_keyboard: [[{ text: T.ch_btn || "📢 Channel", url: "https://t.me/BLACKBULLCINEMA" }]] };
-      
+
       const res = await fetch(`https://api.telegram.org/bot${selectedToken}/sendMessage`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chat_id: chatId, text: T.group_force_sub || "Join channel to search", parse_mode: "HTML", reply_markup: kb })
@@ -210,7 +210,7 @@ async function handleMessage(msg, env, ctx) {
           await fetch(`https://api.telegram.org/bot${selectedToken}/deleteMessage`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ chat_id: chatId, message_id: nfMsgId })
-          }).catch(() => {});
+          }).catch(() => { });
         })());
       }
       return;
@@ -246,7 +246,11 @@ async function handleMessage(msg, env, ctx) {
         await fetch(`https://api.telegram.org/bot${selectedToken}/deleteMessage`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ chat_id: chatId, message_id: nfMsgId })
-        }).catch(() => {});
+        }).catch(() => { });
+        await fetch(`https://api.telegram.org/bot${selectedToken}/deleteMessage`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, message_id: msgId })
+        }).catch(() => { });
       })());
     }
   }
@@ -361,7 +365,7 @@ async function handleAdminLogic(msg, env) {
     state.rating = parts[2] || "N/A";
     state.step = "ask_trailer";
     await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
-    
+
     const kb = { inline_keyboard: [[{ text: "⏭ Skip Trailer", callback_data: "skip_trailer" }]] };
     return fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -441,7 +445,7 @@ async function handleCallback(cb, env, ctx) {
     // Check if the user who clicked is the same as the one who requested (for group chats)
     if (cb.message.chat.type !== "private") {
       let isWrongUser = false;
-      
+
       if (cb.message.reply_to_message) {
         isWrongUser = String(cb.message.reply_to_message.from.id) !== String(cb.from.id);
       } else {
@@ -500,7 +504,7 @@ async function handleCallback(cb, env, ctx) {
         state.is_series = data === "type_series";
         state.step = "ask_quality_btn";
         await kv.put(`admin_state_${chatId}`, JSON.stringify(state));
-        
+
         const qList = ["144p", "240p", "360p", "480p", "720p", "1k", "2k", "4k", "8k"];
         const keyboard = [];
         for (let i = 0; i < qList.length; i += 3) {
@@ -613,10 +617,10 @@ async function handleCallback(cb, env, ctx) {
       let searchKey = null;
       if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
       if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
-      
+
       if (!searchKey) {
-         const list = await kv.list({ prefix: `idx_${movieId}` });
-         if (list.keys.length > 0) searchKey = await kv.get(list.keys[0].name);
+        const list = await kv.list({ prefix: `idx_${movieId}` });
+        if (list.keys.length > 0) searchKey = await kv.get(list.keys[0].name);
       }
 
       if (searchKey) {
@@ -630,7 +634,7 @@ async function handleCallback(cb, env, ctx) {
           const keyboard = [];
           const safeQuery = originalQuery.substring(0, 15);
           for (const cat of availableCats) {
-            keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId.substring(0,35)}|${cat}|${safeQuery}` }]);
+            keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId.substring(0, 35)}|${cat}|${safeQuery}` }]);
           }
           if (movie.trailer) {
             keyboard.push([{ text: "🎬 Watch Trailer", url: movie.trailer }]);
@@ -667,32 +671,32 @@ async function handleCallback(cb, env, ctx) {
       let searchKey = null;
       if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
       if (!searchKey) searchKey = await kv.get(`idx_${movieId}`);
-      
+
       if (!searchKey) {
-         const list = await kv.list({ prefix: `idx_${movieId}` });
-         if (list.keys.length > 0) searchKey = await kv.get(list.keys[0].name);
+        const list = await kv.list({ prefix: `idx_${movieId}` });
+        if (list.keys.length > 0) searchKey = await kv.get(list.keys[0].name);
       }
 
       if (searchKey) {
         const dataStr = await kv.get(searchKey);
         const movie = JSON.parse(dataStr);
         const filteredQualities = movie.qualities.filter(q => (q.cat || "Other") === cat);
-        
+
         const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\nQuality: <b>${cat}</b>\n\nමෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇`;
 
         for (const token of bots) {
           const botUser = await getBotUsername(token);
           const keyboard = [];
-          
+
           const kvRef = env.BLACKBULL_REF_POINT;
           const currentPoints = kvRef ? parseInt(await kvRef.get("pts_" + cb.from.id) || "0") : 0;
-          
+
           for (const q of filteredQualities) {
             let sizeText = "";
             if (!movie.is_series && q.size) {
               sizeText = ` - ${formatSize(q.size)}`;
             }
-            
+
             if (currentPoints >= 5) {
               // Direct Deep Link via Points
               const directToken = "tk_" + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
@@ -723,12 +727,12 @@ async function handleCallback(cb, env, ctx) {
       await answerCallbackSafe(bots, cb.id);
       const parts = data.substring(7).split("|");
       const query = parts[0];
-      
+
       if (query === "watch") {
         await fetch(`https://api.telegram.org/bot${bots[0]}/deleteMessage`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ chat_id: chatId, message_id: msgId })
-        }).catch(() => {});
+        }).catch(() => { });
         return;
       }
 
@@ -755,15 +759,15 @@ async function handleCallback(cb, env, ctx) {
 
     if (data.startsWith("watch_add_")) {
       const movieId = data.substring(10);
-      
+
       let watchlistStr = await kv.get(`watch_${cb.from.id}`);
       let watchlist = watchlistStr ? JSON.parse(watchlistStr) : [];
       if (!watchlist.includes(movieId)) {
-          watchlist.push(movieId);
-          await kv.put(`watch_${cb.from.id}`, JSON.stringify(watchlist));
-          await answerCallbackSafe(bots, cb.id, "✅ Added to your Watchlist!", true);
+        watchlist.push(movieId);
+        await kv.put(`watch_${cb.from.id}`, JSON.stringify(watchlist));
+        await answerCallbackSafe(bots, cb.id, "✅ Added to your Watchlist!", true);
       } else {
-          await answerCallbackSafe(bots, cb.id, "⚠️ Already in your Watchlist!", true);
+        await answerCallbackSafe(bots, cb.id, "⚠️ Already in your Watchlist!", true);
       }
       return;
     }
@@ -801,11 +805,11 @@ async function handleCallback(cb, env, ctx) {
     if (data.startsWith("req_")) {
       const query = data.substring(4);
       const reqText = `සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉`;
-      const kb = { 
+      const kb = {
         inline_keyboard: [
           [{ text: "💝 Send Request 💝", callback_data: `reqask_${query}` }],
           [{ text: "🔙 Back", callback_data: `search_${query}` }]
-        ] 
+        ]
       };
 
       await answerCallbackSafe(bots, cb.id);
@@ -815,7 +819,7 @@ async function handleCallback(cb, env, ctx) {
       for (const token of bots) {
         let apiUrl = `https://api.telegram.org/bot${token}/editMessageText`;
         let payload = { chat_id: chatId, message_id: msgId, text: reqText, parse_mode: "HTML", reply_markup: kb };
-        
+
         if (isPhoto) {
           apiUrl = `https://api.telegram.org/bot${token}/editMessageCaption`;
           payload = { chat_id: chatId, message_id: msgId, caption: reqText, parse_mode: "HTML", reply_markup: kb };
@@ -833,7 +837,7 @@ async function handleCallback(cb, env, ctx) {
               await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ chat_id: chatId, message_id: msgId })
-              }).catch(() => {});
+              }).catch(() => { });
             })());
           }
           break;
@@ -862,7 +866,7 @@ async function handleCallback(cb, env, ctx) {
       for (const token of bots) {
         let apiUrl = `https://api.telegram.org/bot${token}/editMessageText`;
         let payload = { chat_id: chatId, message_id: msgId, text: askText, parse_mode: "HTML", reply_markup: kb };
-        
+
         if (isPhoto) {
           apiUrl = `https://api.telegram.org/bot${token}/editMessageCaption`;
           payload = { chat_id: chatId, message_id: msgId, caption: askText, parse_mode: "HTML", reply_markup: kb };
@@ -880,7 +884,7 @@ async function handleCallback(cb, env, ctx) {
               await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ chat_id: chatId, message_id: msgId })
-              }).catch(() => {});
+              }).catch(() => { });
             })());
           }
           break;
@@ -1019,24 +1023,24 @@ async function handleStartCommand(chatId, payload, env, bots) {
       return;
     }
     const tokenData = JSON.parse(tokenDataStr);
-    
+
     if (String(tokenData.u) !== String(chatId)) {
       const tgApiUrl = `https://api.telegram.org/bot${bots[0]}/sendMessage`;
       await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "❌ <b>This link was not generated for you!</b>", parse_mode: "HTML" }) });
       return;
     }
-    
+
     const currentPoints = parseInt(await kvRef.get("pts_" + chatId) || "0");
     if (currentPoints < 5) {
       const tgApiUrl = `https://api.telegram.org/bot${bots[0]}/sendMessage`;
       await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "⚠️ <b>You don't have enough points (5 points required).</b>\nPlease use the normal Gateway to download.", parse_mode: "HTML" }) });
       return;
     }
-    
+
     // Deduct points and delete token
     await kvRef.put("pts_" + chatId, (currentPoints - 5).toString());
     await kvRef.delete(payload);
-    
+
     // Override payload to the actual file ID from token
     payload = tokenData.f;
   }
@@ -1511,15 +1515,15 @@ async function logSearchStats(kv, query, found) {
       const qLower = query.toLowerCase().trim().substring(0, 30);
       let missingStr = await kv.get("stats_missing_searches");
       let missing = missingStr ? JSON.parse(missingStr) : {};
-      
+
       missing[qLower] = (missing[qLower] || 0) + 1;
-      
+
       // Keep only top 50 to avoid KV size limit
-      const entries = Object.entries(missing).sort((a,b) => b[1] - a[1]);
+      const entries = Object.entries(missing).sort((a, b) => b[1] - a[1]);
       if (entries.length > 50) {
         missing = Object.fromEntries(entries.slice(0, 50));
       }
-      
+
       await kv.put("stats_missing_searches", JSON.stringify(missing));
     }
   } catch (e) {
