@@ -216,6 +216,15 @@ export default {
                 keyboard.push([{ text: "🎬 Watch Trailer", url: movie.trailer }]);
               }
               keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_` }]);
+              
+              let refBotUser = "Unknown_Bot";
+              try {
+                const bRes = await fetch(`${TG_API}/getMe`);
+                const bData = await bRes.json();
+                if (bData.ok) refBotUser = bData.result.username;
+              } catch (e) { }
+              keyboard.push([{ text: "🎁 Earn Point (direct download)", url: `https://t.me/${refBotUser}?start=ref` }]);
+              
               keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery.substring(0, 15)}` }]);
 
               const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\n\n⭐️ <b>Rating:</b> ${movie.rating}/10\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
@@ -681,6 +690,20 @@ export default {
                   } catch (e) { }
                 }
               }
+
+              let botUser = "Unknown_Bot";
+              try {
+                const bRes = await fetch(`${TG_API}/getMe`);
+                const bData = await bRes.json();
+                if (bData.ok) botUser = bData.result.username;
+              } catch (e) { }
+
+              const remainingPoints = currentPoints - 5;
+              const deductMsg = `✅ ඔයාගේ points 5 ක් අඩු උනා.\nතව points ${remainingPoints} ක් තියෙනවා films/series direct download කරගන්න. 🎁`;
+              const deductKb = { inline_keyboard: [[{ text: "🔗 Earn More Points", url: `https://t.me/${botUser}?start=ref` }]] };
+              
+              await tgSend(TG_API, chatId, deductMsg, deductKb.inline_keyboard);
+              
               return new Response("OK");
             }
 

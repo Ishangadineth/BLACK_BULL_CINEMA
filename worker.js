@@ -640,6 +640,12 @@ async function handleCallback(cb, env, ctx) {
             keyboard.push([{ text: "🎬 Watch Trailer", url: movie.trailer }]);
           }
           keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_${movieId.substring(0, 50)}` }]);
+          
+          const refBotToken = bots.length > 1 ? bots[1] : bots[0];
+          const refBotUser = await getBotUsername(refBotToken);
+          const validBotUser = refBotUser !== "UnknownBot" ? refBotUser : "Sofia_BLACKBULL_bot";
+          keyboard.push([{ text: "🎁 Earn Point (direct download)", url: `https://t.me/${validBotUser}?start=ref` }]);
+          
           keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${safeQuery}` }]);
 
           const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\n\n⭐️ <b>Rating:</b> ${movie.rating}/10\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
