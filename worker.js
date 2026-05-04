@@ -1014,6 +1014,7 @@ async function handleStartCommand(chatId, payload, env, bots) {
     return;
   }
 
+  let deductedPoints = null;
   // ── One-Time Token Handling (Point System) ──
   if (payload.startsWith("tk_")) {
     const kvRef = env.BLACKBULL_REF_POINT;
@@ -1042,8 +1043,6 @@ async function handleStartCommand(chatId, payload, env, bots) {
       await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "⚠️ <b>You don't have enough points (5 points required).</b>\nPlease use the normal Gateway to download.", parse_mode: "HTML" }) });
       return;
     }
-
-    let deductedPoints = null;
     
     // Deduct points and delete token
     const remainingPoints = currentPoints - 5;
