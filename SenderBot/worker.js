@@ -642,7 +642,7 @@ export default {
         }
 
         // ── Commands ──
-        if (text.startsWith("/start")) {
+        if (text.startsWith("/start") && text.trim() !== "/start ref") {
           const payloadCmd = text.split(" ")[1];
           if (payloadCmd) {
 
@@ -790,7 +790,7 @@ export default {
             }
           }
         }
-        else if (text === "/ref" && isPrivate) {
+        else if ((text === "/ref" || text === "/start ref") && isPrivate) {
           const kvRef = env.BLACKBULL_REF_POINT;
           const currentPoints = kvRef ? parseInt(await kvRef.get("pts_" + userId) || "0") : 0;
 
