@@ -49,14 +49,65 @@ export async function handleDashboardRequest(request, env) {
     }
 
     // Mock data for missing searches and chart until we implement the actual trackers in the bot
+    let missing = await getTopMissing(kv);
+    let chartData = await getChartData(kv);
+
+    // --- Fetch Watchlists ---
+    const topWatchlists = {};
+    try {
+        const watchListKeys = await kv.list({ prefix: "watch_" });
+        for (const key of watchListKeys.keys) {
+            const wStr = await kv.get(key.name);
+            if (wStr) {
+                try {
+                    const arr = JSON.parse(wStr);
+                    arr.forEach(id => { topWatchlists[id] = (topWatchlists[id] || 0) + 1; });
+                } catch(e) {}
+            }
+        }
+    } catch(e) { console.error(e) }
+
+    const sortedWatchlists = Object.entries(topWatchlists)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([id, count]) => ({ id, count }));
+
+    // Fetch titles for watchlisted movies
+    for (let w of sortedWatchlists) {
+        const mStr = await kv.get(`idx_${w.id}`);
+        if (mStr) {
+            try { w.title = JSON.parse(mStr).title; } catch(e) { w.title = w.id; }
+        } else {
+            w.title = w.id;
+        }
+    }
+
+    // --- Fetch Referrals (Points) ---
+    const topReferrers = [];
+    const kvRef = env.BLACKBULL_REF_POINT;
+    if (kvRef) {
+        try {
+            const refListKeys = await kvRef.list({ prefix: "pts_" });
+            for (const key of refListKeys.keys) {
+                const pts = parseInt(await kvRef.get(key.name) || "0");
+                if (pts > 0) {
+                    topReferrers.push({ user: key.name.replace("pts_", ""), points: pts, referrals: Math.floor(pts/15) });
+                }
+            }
+        } catch(e) { console.error(e) }
+    }
+    topReferrers.sort((a, b) => b.points - a.points);
+
     const statsData = {
         movies: m_count,
-        series: s_count, // We will update the main bot to track this specifically later
+        series: s_count,
         files: f_count,
         users: users,
-        totalSearches: await getStat(kv, "stats_total_searches") || 120, // Default to 120 if empty
-        missing: await getTopMissing(kv),
-        chartData: await getChartData(kv)
+        totalSearches: await getStat(kv, "stats_total_searches") || 120,
+        missing: missing,
+        chartData: chartData,
+        topWatchlists: sortedWatchlists,
+        topReferrers: topReferrers.slice(0, 10)
     };
 
     return new Response(JSON.stringify(statsData), { headers: { "Content-Type": "application/json" } });

@@ -116,7 +116,32 @@ export const dashboardHTML = `
                 <h2 class="text-lg font-semibold mb-4 text-rose-400 flex items-center gap-2">
                     <span>⚠️ Top Missing Searches</span>
                 </h2>
-                <div class="space-y-3" id="missingList">
+                <div class="space-y-3 max-h-72 overflow-y-auto pr-2" id="missingList">
+                    <div class="text-slate-400 text-sm text-center py-4">Loading data...</div>
+                </div>
+            </div>
+            
+        </div>
+
+        <!-- Referrals and Watchlists -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            <!-- Top Referrers -->
+            <div class="glass-card p-6">
+                <h2 class="text-lg font-semibold mb-4 text-emerald-400 flex items-center gap-2">
+                    <span>👑 Top Referrers (Points)</span>
+                </h2>
+                <div class="space-y-3 max-h-72 overflow-y-auto pr-2" id="referrersList">
+                    <div class="text-slate-400 text-sm text-center py-4">Loading data...</div>
+                </div>
+            </div>
+
+            <!-- Top Watchlisted Movies -->
+            <div class="glass-card p-6">
+                <h2 class="text-lg font-semibold mb-4 text-purple-400 flex items-center gap-2">
+                    <span>❤️ Most Watchlisted</span>
+                </h2>
+                <div class="space-y-3 max-h-72 overflow-y-auto pr-2" id="watchlistsList">
                     <div class="text-slate-400 text-sm text-center py-4">Loading data...</div>
                 </div>
             </div>
@@ -150,6 +175,33 @@ export const dashboardHTML = `
                     \`).join('')
                     : '<div class="text-slate-400 text-sm">No missing searches yet!</div>';
                 document.getElementById('missingList').innerHTML = missingHtml;
+
+                // Render Top Referrers
+                const referrersHtml = data.topReferrers && data.topReferrers.length > 0
+                    ? data.topReferrers.map((r, index) => \`
+                        <div class="flex justify-between items-center bg-slate-800/50 p-3 rounded border-l-4 \${index === 0 ? 'border-yellow-500' : index === 1 ? 'border-gray-300' : index === 2 ? 'border-amber-600' : 'border-slate-600'}">
+                            <div>
+                                <span class="font-bold text-white">\${index + 1}. User ID: \${r.user}</span>
+                                <div class="text-xs text-slate-400">\${r.referrals} Referrals</div>
+                            </div>
+                            <span class="text-sm bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full">\${r.points} pts</span>
+                        </div>
+                    \`).join('')
+                    : '<div class="text-slate-400 text-sm text-center">No referrers found yet.</div>';
+                document.getElementById('referrersList').innerHTML = referrersHtml;
+
+                // Render Top Watchlisted
+                const watchlistsHtml = data.topWatchlists && data.topWatchlists.length > 0
+                    ? data.topWatchlists.map((w, index) => \`
+                        <div class="flex justify-between items-center bg-slate-800/50 p-3 rounded">
+                            <div class="truncate max-w-[70%]">
+                                <span class="font-medium text-white">\${index + 1}. \${w.title}</span>
+                            </div>
+                            <span class="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded-full">❤️ \${w.count} users</span>
+                        </div>
+                    \`).join('')
+                    : '<div class="text-slate-400 text-sm text-center">No watchlists found yet.</div>';
+                document.getElementById('watchlistsList').innerHTML = watchlistsHtml;
 
                 // Render Chart
                 const ctx = document.getElementById('trafficChart').getContext('2d');
