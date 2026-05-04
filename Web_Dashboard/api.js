@@ -73,12 +73,23 @@ export async function handleDashboardRequest(request, env) {
         .map(([id, count]) => ({ id, count }));
 
     // Fetch titles for watchlisted movies
+    const kvFileId = env.BLACK_BULL_CINEMA_FILEID;
     for (let w of sortedWatchlists) {
-        const mStr = await kv.get(`idx_${w.id}`);
-        if (mStr) {
-            try { w.title = JSON.parse(mStr).title; } catch(e) { w.title = w.id; }
-        } else {
-            w.title = w.id;
+        let titleFound = false;
+        if (kvFileId) {
+            const searchKey = await kvFileId.get(`idx_${w.id}`);
+            if (searchKey) {
+                const mStr = await kv.get(searchKey);
+                if (mStr) {
+                    try { 
+                        w.title = JSON.parse(mStr).title; 
+                        titleFound = true;
+                    } catch(e) {}
+                }
+            }
+        }
+        if (!titleFound) {
+            w.title = w.id; // Fallback to ID if not found
         }
     }
 
