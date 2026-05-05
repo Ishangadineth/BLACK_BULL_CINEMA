@@ -450,7 +450,6 @@ async function handleCallback(cb, env, ctx) {
       if (cb.message.reply_to_message) {
         isWrongUser = String(cb.message.reply_to_message.from.id) !== String(cb.from.id);
       }
-    }
 
       if (isWrongUser) {
         const langCode = await getUserLang(cb.from.id, env);
