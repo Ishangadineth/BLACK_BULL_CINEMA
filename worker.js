@@ -546,7 +546,15 @@ async function handleCallback(cb, env, ctx) {
     }
 
     if (data.startsWith("setlang_")) {
-      const langCode = data.split("_")[1];
+      const parts = data.split("|");
+      const langCode = parts[0].split("_")[1];
+      const targetUserId = parts.length > 1 ? parts[1] : null;
+      
+      if (targetUserId && targetUserId !== String(cb.from.id)) {
+        await answerCallbackSafe(bots, cb.id, "❌ You cannot change settings for others!", true);
+        return;
+      }
+
       if (env.BLACK_BULL_CINEMA_LANG) {
         if (langCode === "si") await env.BLACK_BULL_CINEMA_LANG.delete(`lang_${cb.from.id}`);
         else await env.BLACK_BULL_CINEMA_LANG.put(`lang_${cb.from.id}`, langCode);
@@ -571,12 +579,19 @@ async function handleCallback(cb, env, ctx) {
       return;
     }
 
-    if (data === "lang_menu") {
+    if (data.startsWith("lang_menu")) {
+      const parts = data.split("|");
+      const targetUserId = parts.length > 1 ? parts[1] : null;
+      if (targetUserId && targetUserId !== String(cb.from.id)) {
+        await answerCallbackSafe(bots, cb.id, "❌ You cannot change settings for others!", true);
+        return;
+      }
+      
       const kb = {
         inline_keyboard: [
-          [{ text: "🇱🇰 Sinhala (Default)", callback_data: "setlang_si" }],
-          [{ text: "🇬🇧 English", callback_data: "setlang_en" }, { text: "🇮🇳 Hindi", callback_data: "setlang_hi" }],
-          [{ text: "🇪🇸 Spanish", callback_data: "setlang_es" }, { text: "🇮🇳 Tamil", callback_data: "setlang_ta" }]
+          [{ text: "🇱🇰 Sinhala (Default)", callback_data: `setlang_si|${cb.from.id}` }],
+          [{ text: "🇬🇧 English", callback_data: `setlang_en|${cb.from.id}` }, { text: "🇮🇳 Hindi", callback_data: `setlang_hi|${cb.from.id}` }],
+          [{ text: "🇪🇸 Spanish", callback_data: `setlang_es|${cb.from.id}` }, { text: "🇮🇳 Tamil", callback_data: `setlang_ta|${cb.from.id}` }]
         ]
       };
 
@@ -799,11 +814,29 @@ async function handleCallback(cb, env, ctx) {
 
     if (data.startsWith("search_")) {
       await answerCallbackSafe(bots, cb.id);
-      const query = data.substring(7);
+      let query = data.substring(7);
+      if (query.includes("|")) query = query.split("|")[0];
       const results = await searchMovieInKV(query, kv);
       if (results && results.length > 0) {
         const userFirstName = cb.message.chat.first_name || "User";
         await sendSearchResults(bots, chatId, cb.from.id, cb.message.reply_to_message?.message_id || msgId, query, results, "all", env, msgId, userFirstName);
+      } else {
+        const langCode = await getUserLang(cb.from.id, env);
+        const T = LANGS[langCode] || LANGS.si;
+        const notFoundText = T.not_found.replace("{query}", query);
+        const kb = { inline_keyboard: [[{ text: T.req_btn, callback_data: `req_${query.substring(0, 40)}` }]] };
+        
+        const isPhoto = !!(cb.message.photo || cb.message.video || cb.message.document);
+        for (const token of bots) {
+          let apiUrl = `https://api.telegram.org/bot${token}/editMessageText`;
+          let payload = { chat_id: chatId, message_id: msgId, text: notFoundText, parse_mode: "HTML", reply_markup: kb };
+          if (isPhoto) {
+            apiUrl = `https://api.telegram.org/bot${token}/editMessageCaption`;
+            payload = { chat_id: chatId, message_id: msgId, caption: notFoundText, parse_mode: "HTML", reply_markup: kb };
+          }
+          const res = await fetch(apiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+          if ((await res.json()).ok) break;
+        }
       }
       return;
     }
@@ -1023,17 +1056,21 @@ async function handleStartCommand(chatId, payload, env, bots) {
       await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "❌ Referral Point KV Namespace not bound!", parse_mode: "HTML" }) });
       return;
     }
-    const tokenDataStr = await kvRef.get(payload);
-    if (!tokenDataStr) {
-      const tgApiUrl = `https://api.telegram.org/bot${bots[0]}/sendMessage`;
-      await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "⚠️ <b>Invalid or expired link!</b>\nPlease search for the movie again and generate a new link.", parse_mode: "HTML" }) });
-      return;
+    let tokenData = null;
+    let tokenDataStr = await kvRef.get(payload);
+    if (tokenDataStr) {
+      try { tokenData = JSON.parse(tokenDataStr); } catch(e) {}
     }
-    const tokenData = JSON.parse(tokenDataStr);
 
-    if (String(tokenData.u) !== String(chatId)) {
+    if (!tokenData || String(tokenData.u) !== String(chatId)) {
       const tgApiUrl = `https://api.telegram.org/bot${bots[0]}/sendMessage`;
-      await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "❌ <b>This link was not generated for you!</b>", parse_mode: "HTML" }) });
+      const refBotToken = bots.length > 1 ? bots[1] : bots[0];
+      const refBotUser = await getBotUsername(refBotToken);
+      const validBotUser = refBotUser !== "UnknownBot" ? refBotUser : "Sofia_BLACKBULL_bot";
+      const kb = { inline_keyboard: [[{ text: "🔗 Earn More Points", url: `https://t.me/${validBotUser}?start=ref` }]] };
+      
+      const errMsg = "⚠️ <b>මේක point system එක හරහා download කරපු films/series එකක් ඔයාටත් gateway නොයා direct download කරගන්න ඕනි නම් පහල button එක ඔබන්න.</b> 🎁";
+      await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: errMsg, reply_markup: kb, parse_mode: "HTML" }) });
       return;
     }
 

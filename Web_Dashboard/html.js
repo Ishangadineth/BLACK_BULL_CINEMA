@@ -170,7 +170,12 @@ export const dashboardHTML = `
                     ? data.missing.map(m => \`
                         <div class="flex justify-between items-center bg-slate-800/50 p-3 rounded">
                             <span class="font-medium">\${m.query}</span>
-                            <span class="text-xs bg-slate-700 px-2 py-1 rounded-full">\${m.count} reqs</span>
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs bg-slate-700 px-2 py-1 rounded-full">\${m.count} reqs</span>
+                                <button onclick="removeMissing('\${m.query}')" class="text-red-400 hover:text-red-300" title="Remove">
+                                    🗑️
+                                </button>
+                            </div>
                         </div>
                     \`).join('')
                     : '<div class="text-slate-400 text-sm">No missing searches yet!</div>';
@@ -233,6 +238,25 @@ export const dashboardHTML = `
             } catch (e) {
                 console.error(e);
                 alert("Failed to load data.");
+            }
+        }
+
+        async function removeMissing(term) {
+            if (!confirm("Are you sure you want to remove '" + term + "' from the missing list?")) return;
+            try {
+                const res = await fetch('/admin/api/remove-missing?pass=' + pass, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ term })
+                });
+                if (res.ok) {
+                    loadData(); // Reload dashboard
+                } else {
+                    alert("Failed to remove item.");
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Error occurred.");
             }
         }
 

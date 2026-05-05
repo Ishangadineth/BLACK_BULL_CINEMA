@@ -93,21 +93,28 @@ export async function handleDashboardRequest(request, env) {
         }
     }
 
-    // --- Fetch Referrals (Points) ---
+    // --- Fetch Referrals (Total Referrals instead of current points) ---
     const topReferrers = [];
     const kvRef = env.BLACKBULL_REF_POINT;
     if (kvRef) {
         try {
-            const refListKeys = await kvRef.list({ prefix: "pts_" });
+            const refListKeys = await kvRef.list({ prefix: "myrefs_" });
             for (const key of refListKeys.keys) {
-                const pts = parseInt(await kvRef.get(key.name) || "0");
-                if (pts > 0) {
-                    topReferrers.push({ user: key.name.replace("pts_", ""), points: pts, referrals: Math.floor(pts/15) });
+                const refsStr = await kvRef.get(key.name);
+                if (refsStr) {
+                    const refsArray = JSON.parse(refsStr);
+                    if (refsArray.length > 0) {
+                        topReferrers.push({ 
+                            user: key.name.replace("myrefs_", ""), 
+                            referrals: refsArray.length,
+                            points: refsArray.length * 15 // Assuming 15 pts per referral for display
+                        });
+                    }
                 }
             }
         } catch(e) { console.error(e) }
     }
-    topReferrers.sort((a, b) => b.points - a.points);
+    topReferrers.sort((a, b) => b.referrals - a.referrals);
 
     const statsData = {
         movies: m_count,
@@ -122,6 +129,30 @@ export async function handleDashboardRequest(request, env) {
     };
 
     return new Response(JSON.stringify(statsData), { headers: { "Content-Type": "application/json" } });
+  }
+
+  // ── API Endpoint to Remove Missing Search ──
+  if (url.pathname === "/admin/api/remove-missing" && request.method === "POST") {
+    if (pass !== ADMIN_PASS) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    const kv = env.BLACK_BULL_CINEMA;
+    if (!kv) return new Response(JSON.stringify({ error: "KV not bound" }), { status: 500 });
+    try {
+      const data = await request.json();
+      const term = data.term;
+      if (term) {
+        const missingStr = await kv.get("stats_missing_searches");
+        if (missingStr) {
+          const missing = JSON.parse(missingStr);
+          if (missing[term]) {
+            delete missing[term];
+            await kv.put("stats_missing_searches", JSON.stringify(missing));
+          }
+        }
+      }
+      return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } });
+    } catch (e) {
+      return new Response(JSON.stringify({ success: false, error: e.message }), { status: 500, headers: { "Content-Type": "application/json" } });
+    }
   }
 
   return new Response("Not found", { status: 404 });

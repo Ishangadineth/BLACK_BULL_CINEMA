@@ -335,6 +335,20 @@ export default {
           if (results && results.length > 0) {
             const userFirstName = cb.message.chat.first_name || "User";
             await sendSearchResults(TG_API, BOT_TOKEN, chatId, userId, cb.message.reply_to_message?.message_id || msgId, query, results, "all", env, msgId, userFirstName);
+          } else {
+            const langCode = await getUserLang(userId, env);
+            const T = LANGS[langCode] || LANGS.si;
+            const notFoundText = T.not_found.replace("{query}", query);
+            const kb = { inline_keyboard: [[{ text: T.req_btn, callback_data: `req_${query.substring(0, 40)}` }]] };
+            
+            const isPhoto = !!(cb.message.photo || cb.message.video || cb.message.document);
+            let apiUrl = `${TG_API}/editMessageText`;
+            let payload = { chat_id: chatId, message_id: msgId, text: notFoundText, parse_mode: "HTML", reply_markup: kb };
+            if (isPhoto) {
+              apiUrl = `${TG_API}/editMessageCaption`;
+              payload = { chat_id: chatId, message_id: msgId, caption: notFoundText, parse_mode: "HTML", reply_markup: kb };
+            }
+            await fetch(apiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
           }
           return new Response("OK");
         }
