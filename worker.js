@@ -695,7 +695,7 @@ async function handleCallback(cb, env, ctx) {
         const movie = JSON.parse(dataStr);
         const filteredQualities = movie.qualities.filter(q => (q.cat || "Other") === cat);
 
-        const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\nQuality: <b>${cat}</b>\n\nමෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇`;
+        let detailText = `🎬 <b>${movie.title} (${movie.year})</b>\nQuality: <b>${cat}</b>\n\nමෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇`;
 
         for (const token of bots) {
           const botUser = await getBotUsername(token);
@@ -703,6 +703,10 @@ async function handleCallback(cb, env, ctx) {
 
           const kvRef = env.BLACKBULL_REF_POINT;
           const currentPoints = kvRef ? parseInt(await kvRef.get("pts_" + cb.from.id) || "0") : 0;
+
+          if (currentPoints < 5) {
+            detailText += `\n\n💡 <b>gateway එකට යන්නේ නැතුව කෙලින්ම bot හරහා ඔයාට ඕනි films/series ගන්න පහල තියෙන button එක ඔබන්න.</b> 👇`;
+          }
 
           for (const q of filteredQualities) {
             let sizeText = "";
@@ -720,6 +724,11 @@ async function handleCallback(cb, env, ctx) {
               keyboard.push([{ text: `📥 Download (${q.name})${sizeText}`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
             }
           }
+
+          if (currentPoints < 5) {
+            keyboard.push([{ text: "🎁 Earn Point (Direct Download)", url: `https://t.me/${botUser}?start=ref` }]);
+          }
+
           if (movie.trailer) {
             keyboard.push([{ text: "🎬 Watch Trailer", url: movie.trailer }]);
           }

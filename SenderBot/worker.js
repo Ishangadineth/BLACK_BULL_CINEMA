@@ -306,6 +306,12 @@ export default {
             const kvRef = env.BLACKBULL_REF_POINT;
             const currentPoints = kvRef ? parseInt(await kvRef.get("pts_" + userId) || "0") : 0;
 
+            let detailText = `🎬 <b>${movie.title} (${movie.year})</b>\nQuality: <b>${cat}</b>\n\nමෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇`;
+
+            if (currentPoints < 5) {
+              detailText += `\n\n💡 <b>gateway එකට යන්නේ නැතුව කෙලින්ම bot හරහා ඔයාට ඕනි films/series ගන්න පහල තියෙන button එක ඔබන්න.</b> 👇`;
+            }
+
             const keyboard = [];
 
             for (let i = 0; i < filteredQualities.length; i++) {
@@ -324,13 +330,15 @@ export default {
               }
             }
 
+            if (currentPoints < 5) {
+              keyboard.push([{ text: "🎁 Earn Point (Direct Download)", url: `https://t.me/${botUser}?start=ref` }]);
+            }
+
             if (movie.trailer) {
               keyboard.push([{ text: "🎬 Watch Trailer", url: movie.trailer }]);
             }
             const safeQuery = originalQuery ? originalQuery.substring(0, 15) : "";
             keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${safeQuery}` }]);
-
-            const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\nQuality: <b>${cat}</b>\n\nමෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇`;
 
             await fetch(`${TG_API}/editMessageCaption`, {
               method: "POST", headers: { "Content-Type": "application/json" },
