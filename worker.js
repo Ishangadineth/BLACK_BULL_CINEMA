@@ -1149,6 +1149,19 @@ async function handleStartCommand(chatId, payload, env, bots) {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text: deductMsg, reply_markup: kb, parse_mode: "HTML" })
     });
+  } else {
+    // Promo for users coming from Gateway
+    const refBotToken = bots.length > 1 ? bots[1] : bots[0];
+    const refBotUser = await getBotUsername(refBotToken);
+    const validBotUser = refBotUser !== "UnknownBot" ? refBotUser : "Sofia_BLACKBULL_bot";
+    
+    const promoMsg = `💡 <b>gateway එකට යන්නේ නැතුව කෙලින්ම bot හරහා ඔයාට ඕනි films/series ගන්න පහල තියෙන button එක ඔබන්න.</b> 👇`;
+    const promoKb = { inline_keyboard: [[{ text: "🎁 Earn Point (Direct Download)", url: `https://t.me/${validBotUser}?start=ref` }]] };
+    
+    await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: promoMsg, reply_markup: promoKb, parse_mode: "HTML" })
+    });
   }
 }
 

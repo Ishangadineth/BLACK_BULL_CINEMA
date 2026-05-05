@@ -824,6 +824,19 @@ export default {
                   const file = fileArray[i];
                   await sendMovieFile(TG_API, chatId, file.id, file.type, file.caption || "", DB_CHANNEL);
                 }
+
+                // Send Promo Message for Gateway Users
+                let botUser = "Unknown_Bot";
+                try {
+                  const bRes = await fetch(`${TG_API}/getMe`);
+                  const bData = await bRes.json();
+                  if (bData.ok) botUser = bData.result.username;
+                } catch (e) { }
+
+                const promoMsg = `💡 <b>gateway එකට යන්නේ නැතුව කෙලින්ම bot හරහා ඔයාට ඕනි films/series ගන්න පහල තියෙන button එක ඔබන්න.</b> 👇`;
+                const promoKb = [[{ text: "🎁 Earn Point (Direct Download)", url: `https://t.me/${botUser}?start=ref` }]];
+                await tgSend(TG_API, chatId, promoMsg, promoKb);
+
               } catch (e) {
                 console.error("Parse error:", e);
                 await tgSend(TG_API, chatId, "❌ <b>System Error while parsing files.</b>", []);
