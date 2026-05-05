@@ -63,38 +63,33 @@ export default {
           }
         }
 
-        // Check if the user who clicked is the same as the one who requested (for group        // --- Global UI Lock Check ---
-        if (data.includes("|")) {
-          const parts = data.split("|");
-          const targetUserId = parts[parts.length - 1];
-          // Check if the last part is a numeric string (userId)
-          if (/^\d+$/.test(targetUserId) && targetUserId !== String(cb.from.id)) {
-            await fetch(`${TG_API}/answerCallbackQuery`, {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ callback_query_id: cb.id, text: "❌ NOT PERMISSION", show_alert: true })
-            });
-            return new Response("OK");
-          }
-        }
-
         // Check if the user who clicked is the same as the one who requested (for group chats)
-        if (chatType !== "private") {
+        if (!isPrivate) {
           let isWrongUser = false;
+
           if (cb.message.reply_to_message) {
             isWrongUser = String(cb.message.reply_to_message.from.id) !== String(cb.from.id);
+          } else {
+            // Fallback: only check callback_data if the button actually contains the userId at the end
+            if (data.startsWith("view_") || data.startsWith("filter_")) {
+              const parts = data.split("|");
+              if (parts.length >= 3) {
+                const reqId = parts[parts.length - 1];
+                if (reqId !== String(cb.from.id)) isWrongUser = true;
+              }
+            }
           }
-          
+
           if (isWrongUser) {
             const langCode = await getUserLang(cb.from.id, env);
             const T = LANGS[langCode] || LANGS.si;
             await fetch(`${TG_API}/answerCallbackQuery`, {
               method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ callback_query_id: cb.id, text: T.wrong_user || "❌ NOT PERMISSION", show_alert: true })
+              body: JSON.stringify({ callback_query_id: cb.id, text: T.wrong_user, show_alert: true })
             });
-            return new Response("OK");
+            // Do not return. Allow the action to proceed while showing the alert.
           }
         }
-        
         if (data.startsWith("check_sub_")) {
           const payloadStr = data.substring(10);
           const isSubbed = await checkForceSub(BOT_TOKEN, userId);
@@ -129,7 +124,17 @@ export default {
         }
 
         // --- UI CALLBACKS IMPORTED FROM MANAGER ---
-        if (data === "lang_menu") {
+        if (data.startsWith("lang_menu")) {
+          const parts = data.split("|");
+          const targetUserId = parts[1];
+          if (targetUserId && targetUserId !== String(cb.from.id)) {
+            await fetch(`${TG_API}/answerCallbackQuery`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ callback_query_id: cb.id, text: "NOT PERMISSION", show_alert: true })
+            });
+            return new Response("OK");
+          }
+
           const kb = {
             inline_keyboard: [
               [{ text: "🇱🇰 Sinhala (Default)", callback_data: `setlang_si|${userId}` }],
@@ -155,6 +160,15 @@ export default {
           const parts = data.split("|");
           const langCode = parts[0].split("_")[1];
           const targetUserId = parts[1];
+          
+          if (targetUserId && targetUserId !== String(cb.from.id)) {
+            await fetch(`${TG_API}/answerCallbackQuery`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ callback_query_id: cb.id, text: "NOT PERMISSION", show_alert: true })
+            });
+            return new Response("OK");
+          }
+
           if (env.BLACK_BULL_CINEMA_LANG) {
             if (langCode === "si") await env.BLACK_BULL_CINEMA_LANG.delete(`lang_${userId}`);
             else await env.BLACK_BULL_CINEMA_LANG.put(`lang_${userId}`, langCode);
@@ -216,14 +230,13 @@ export default {
               state.lastQuery = originalQuery;
               await DB.put(STATE_KEY(chatId), JSON.stringify(state));
 
-              const targetUserId = userId; // The person who clicked 'view_' initially
               for (const cat of availableCats) {
-                keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${cat.substring(0, 20)}|${targetUserId}` }]);
+                keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${cat.substring(0, 20)}` }]);
               }
               if (movie.trailer) {
                 keyboard.push([{ text: "🎬 Watch Trailer", url: movie.trailer }]);
               }
-              keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_|${targetUserId}` }]);
+              keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_` }]);
               
               let refBotUser = "Unknown_Bot";
               try {
@@ -233,7 +246,7 @@ export default {
               } catch (e) { }
               keyboard.push([{ text: "🎁 Earn Point (direct download)", url: `https://t.me/${refBotUser}?start=ref` }]);
               
-              keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery.substring(0, 15)}|${targetUserId}` }]);
+              keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery.substring(0, 15)}` }]);
 
               const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\n\n⭐️ <b>Rating:</b> ${movie.rating}/10\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
               const randomImg = "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000";
@@ -256,9 +269,7 @@ export default {
 
         if (data.startsWith("qview_")) {
           await answerCallback(TG_API, cb.id);
-          const parts = data.substring(6).split("|");
-          const cat = parts[0];
-          const targetUserId = parts[1];
+          const cat = data.substring(6);
 
           const state = JSON.parse(await DB.get(STATE_KEY(chatId)) || "{}");
           const movieId = state.lastMovie;
@@ -317,7 +328,7 @@ export default {
               keyboard.push([{ text: "🎬 Watch Trailer", url: movie.trailer }]);
             }
             const safeQuery = originalQuery ? originalQuery.substring(0, 15) : "";
-            keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${safeQuery}|${targetUserId}` }]);
+            keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${safeQuery}` }]);
 
             const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\nQuality: <b>${cat}</b>\n\nමෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇`;
 
@@ -335,7 +346,6 @@ export default {
           if (!kv) throw new Error("Database KV not bound to Sender Bot!");
           const parts = data.substring(7).split("|");
           const query = parts[0];
-          const targetUserId = parts[1] || String(cb.from.id);
 
           if (query === "watch") {
             await deleteMessage(TG_API, chatId, msgId);
@@ -350,7 +360,7 @@ export default {
             const langCode = await getUserLang(userId, env);
             const T = LANGS[langCode] || LANGS.si;
             const notFoundText = T.not_found.replace("{query}", query);
-            const kb = { inline_keyboard: [[{ text: T.req_btn, callback_data: `req_${query.substring(0, 40)}|${targetUserId}` }]] };
+            const kb = { inline_keyboard: [[{ text: T.req_btn, callback_data: `req_${query.substring(0, 40)}` }]] };
             
             const isPhoto = !!(cb.message.photo || cb.message.video || cb.message.document);
             let apiUrl = `${TG_API}/editMessageText`;
@@ -403,14 +413,12 @@ export default {
         }
 
         if (data.startsWith("req_")) {
-          const parts = data.substring(4).split("|");
-          const query = parts[0];
-          const targetUserId = parts[1] || String(cb.from.id);
+          const query = data.substring(4);
           const reqText = `සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉`;
           const kb = {
             inline_keyboard: [
-              [{ text: "💝 Send Request 💝", callback_data: `reqask_${query}|${targetUserId}` }],
-              [{ text: "🔙 Back", callback_data: `search_${query}|${targetUserId}` }]
+              [{ text: "💝 Send Request 💝", callback_data: `reqask_${query}` }],
+              [{ text: "🔙 Back", callback_data: `search_${query}` }]
             ]
           };
 
@@ -1204,14 +1212,14 @@ async function sendSearchResults(api, botToken, chatId, userId, replyToMsgId, qu
 
   const keyboard = [];
   keyboard.push([
-    { text: filterType === "movies" ? `✅ ${T.movies}` : T.movies, callback_data: `filter_movies_${query}|${userId}` },
-    { text: filterType === "series" ? `✅ ${T.series}` : T.series, callback_data: `filter_series_${query}|${userId}` }
+    { text: filterType === "movies" ? `✅ ${T.movies}` : T.movies, callback_data: `filter_movies_${query}` },
+    { text: filterType === "series" ? `✅ ${T.series}` : T.series, callback_data: `filter_series_${query}` }
   ]);
   // List Buttons
   for (const r of filtered) {
     const safeQuery = query.substring(0, 20);
     const mId = r.id ? r.id : r._key.substring(0, 30);
-    keyboard.push([{ text: `🎬 ${r.title} (${r.year})`, callback_data: `view_${mId}|${safeQuery}|${userId}` }]);
+    keyboard.push([{ text: `🎬 ${r.title} (${r.year})`, callback_data: `view_${mId}|${safeQuery}` }]);
   }
   if (filtered.length === 0) keyboard.push([{ text: T.not_found_cat, callback_data: "none" }]);
   keyboard.push([{ text: T.not_here, callback_data: `req_${query.substring(0, 40)}|${userId}` }]);
