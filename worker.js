@@ -74,11 +74,12 @@ async function handleMessage(msg, env, ctx) {
   }
 
   if (text.startsWith("/lang")) {
+    const userId = msg.from?.id || chatId;
     const kb = {
       inline_keyboard: [
-        [{ text: "🇱🇰 Sinhala (Default)", callback_data: "setlang_si" }],
-        [{ text: "🇬🇧 English", callback_data: "setlang_en" }, { text: "🇮🇳 Hindi", callback_data: "setlang_hi" }],
-        [{ text: "🇪🇸 Spanish", callback_data: "setlang_es" }, { text: "🇮🇳 Tamil", callback_data: "setlang_ta" }]
+        [{ text: "🇱🇰 Sinhala (Default)", callback_data: `setlang_si|${userId}` }],
+        [{ text: "🇬🇧 English", callback_data: `setlang_en|${userId}` }, { text: "🇮🇳 Hindi", callback_data: `setlang_hi|${userId}` }],
+        [{ text: "🇪🇸 Spanish", callback_data: `setlang_es|${userId}` }, { text: "🇮🇳 Tamil", callback_data: `setlang_ta|${userId}` }]
       ]
     };
     const res = await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
@@ -442,10 +443,20 @@ async function handleCallback(cb, env, ctx) {
     const data = cb.data;
     const msgId = cb.message.message_id;
 
+    // --- Global UI Lock Check ---
+    if (data.includes("|")) {
+      const parts = data.split("|");
+      const targetUserId = parts[parts.length - 1];
+      // Check if the last part is a numeric string (userId)
+      if (/^\d+$/.test(targetUserId) && targetUserId !== String(cb.from.id)) {
+        await answerCallbackSafe(bots, cb.id, "❌ NOT PERMISSION", true);
+        return;
+      }
+    }
+
     // Check if the user who clicked is the same as the one who requested (for group chats)
     if (cb.message.chat.type !== "private") {
       let isWrongUser = false;
-
       if (cb.message.reply_to_message) {
         isWrongUser = String(cb.message.reply_to_message.from.id) !== String(cb.from.id);
       } else {
@@ -621,13 +632,10 @@ async function handleCallback(cb, env, ctx) {
       await answerCallbackSafe(bots, cb.id);
 
       const payloadStr = data.substring(5);
-      const splitIndex = payloadStr.indexOf("|");
-      let movieId = payloadStr;
-      let originalQuery = "";
-      if (splitIndex !== -1) {
-        movieId = payloadStr.substring(0, splitIndex);
-        originalQuery = payloadStr.substring(splitIndex + 1);
-      }
+      const parts = payloadStr.split("|");
+      let movieId = parts[0];
+      let originalQuery = parts[1] || "";
+      let targetUserId = parts[2] || "";
 
       let searchKey = null;
       if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
@@ -649,19 +657,19 @@ async function handleCallback(cb, env, ctx) {
           const keyboard = [];
           const safeQuery = originalQuery.substring(0, 15);
           for (const cat of availableCats) {
-            keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId.substring(0, 35)}|${cat}|${safeQuery}` }]);
+            keyboard.push([{ text: `${cat} ⚡`, callback_data: `qview_${movieId.substring(0, 35)}|${cat}|${safeQuery}|${targetUserId}` }]);
           }
           if (movie.trailer) {
             keyboard.push([{ text: "🎬 Watch Trailer", url: movie.trailer }]);
           }
-          keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_${movieId.substring(0, 50)}` }]);
+          keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_${movieId.substring(0, 50)}|${targetUserId}` }]);
           
           const refBotToken = bots.length > 1 ? bots[1] : bots[0];
           const refBotUser = await getBotUsername(refBotToken);
           const validBotUser = refBotUser !== "UnknownBot" ? refBotUser : "Sofia_BLACKBULL_bot";
           keyboard.push([{ text: "🎁 Earn Point (direct download)", url: `https://t.me/${validBotUser}?start=ref` }]);
           
-          keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${safeQuery}` }]);
+          keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${safeQuery}|${targetUserId}` }]);
 
           const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\n\n⭐️ <b>Rating:</b> ${movie.rating}/10\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
           const randomImg = "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp";
@@ -687,7 +695,7 @@ async function handleCallback(cb, env, ctx) {
 
     if (data.startsWith("qview_")) {
       await answerCallbackSafe(bots, cb.id);
-      const [movieId, cat, originalQuery] = data.substring(6).split("|");
+      const [movieId, cat, originalQuery, targetUserId] = data.substring(6).split("|");
 
       let searchKey = null;
       if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${movieId}`);
@@ -732,7 +740,7 @@ async function handleCallback(cb, env, ctx) {
             keyboard.push([{ text: "🎬 Watch Trailer", url: movie.trailer }]);
           }
           const safeQuery = originalQuery ? originalQuery.substring(0, 15) : "";
-          keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${safeQuery}` }]);
+          keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${safeQuery}|${targetUserId}` }]);
 
           const res = await fetch(`https://api.telegram.org/bot${token}/editMessageCaption`, {
             method: "POST", headers: { "Content-Type": "application/json" },
@@ -814,8 +822,11 @@ async function handleCallback(cb, env, ctx) {
 
     if (data.startsWith("search_")) {
       await answerCallbackSafe(bots, cb.id);
-      let query = data.substring(7);
-      if (query.includes("|")) query = query.split("|")[0];
+      let payload = data.substring(7);
+      let parts = payload.split("|");
+      let query = parts[0];
+      let targetUserId = parts[1] || String(cb.from.id);
+
       const results = await searchMovieInKV(query, kv);
       if (results && results.length > 0) {
         const userFirstName = cb.message.chat.first_name || "User";
@@ -824,7 +835,7 @@ async function handleCallback(cb, env, ctx) {
         const langCode = await getUserLang(cb.from.id, env);
         const T = LANGS[langCode] || LANGS.si;
         const notFoundText = T.not_found.replace("{query}", query);
-        const kb = { inline_keyboard: [[{ text: T.req_btn, callback_data: `req_${query.substring(0, 40)}` }]] };
+        const kb = { inline_keyboard: [[{ text: T.req_btn, callback_data: `req_${query.substring(0, 40)}|${targetUserId}` }]] };
         
         const isPhoto = !!(cb.message.photo || cb.message.video || cb.message.document);
         for (const token of bots) {
@@ -842,12 +853,15 @@ async function handleCallback(cb, env, ctx) {
     }
 
     if (data.startsWith("req_")) {
-      const query = data.substring(4);
+      const parts = data.substring(4).split("|");
+      const query = parts[0];
+      const targetUserId = parts[1] || String(cb.from.id);
+      
       const reqText = `සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉`;
       const kb = {
         inline_keyboard: [
-          [{ text: "💝 Send Request 💝", callback_data: `reqask_${query}` }],
-          [{ text: "🔙 Back", callback_data: `search_${query}` }]
+          [{ text: "💝 Send Request 💝", callback_data: `reqask_${query}|${targetUserId}` }],
+          [{ text: "🔙 Back", callback_data: `search_${query}|${targetUserId}` }]
         ]
       };
 

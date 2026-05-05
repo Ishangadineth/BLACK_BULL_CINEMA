@@ -93,21 +93,24 @@ export async function handleDashboardRequest(request, env) {
         }
     }
 
-    // --- Fetch Referrals (Total Referrals instead of current points) ---
+    // --- Fetch Referrals (Total Referrals & Real-time Points) ---
     const topReferrers = [];
     const kvRef = env.BLACKBULL_REF_POINT;
     if (kvRef) {
         try {
             const refListKeys = await kvRef.list({ prefix: "myrefs_" });
             for (const key of refListKeys.keys) {
+                const userId = key.name.replace("myrefs_", "");
                 const refsStr = await kvRef.get(key.name);
                 if (refsStr) {
                     const refsArray = JSON.parse(refsStr);
                     if (refsArray.length > 0) {
+                        const realPointsStr = await kvRef.get("pts_" + userId);
+                        const realPoints = realPointsStr ? parseInt(realPointsStr) : 0;
                         topReferrers.push({ 
-                            user: key.name.replace("myrefs_", ""), 
+                            user: userId, 
                             referrals: refsArray.length,
-                            points: refsArray.length * 15 // Assuming 15 pts per referral for display
+                            points: realPoints
                         });
                     }
                 }
