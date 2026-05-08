@@ -794,6 +794,13 @@ async function handleCallback(cb, env, ctx) {
       return;
     }
 
+    if (data.startsWith("mywatch_")) {
+      await answerCallbackSafe(bots, cb.id);
+      const filter = data.split("_")[1];
+      await showWatchlist(bots[0], chatId, filter, env, cb.from.id, msgId);
+      return;
+    }
+
     if (data.startsWith("check_sub_")) {
       const payload = data.substring(10);
       const isSubbed = await checkForceSub(env.BOT_TOKEN_1, cb.from.id);
@@ -1037,6 +1044,12 @@ async function finalizeSave(chatId, state, env, thumbId) {
 // ══════════════════════════════════════════════
 
 async function handleStartCommand(chatId, payload, env, bots) {
+  if (payload.startsWith("watchlist")) {
+    const filter = payload.split("_")[1] || "all";
+    await showWatchlist(bots[0], chatId, filter, env, chatId);
+    return;
+  }
+
   const isSubbed = await checkForceSub(bots[0], chatId);
   if (!isSubbed) {
     return sendForceSubMessage(bots[0], chatId, chatId, payload, env);
@@ -1446,6 +1459,7 @@ async function sendSearchResults(bots, chatId, userId, replyToMsgId, query, resu
   }
 
   keyboard.push([{ text: T.not_here, callback_data: `req_${query.substring(0, 40)}` }]);
+  keyboard.push([{ text: "❤️ Watchlist", url: `https://t.me/Sofia_BLACKBULL_bot?start=watchlist` }]);
   keyboard.push([{ text: T.change_lang, callback_data: `lang_menu|${userId}` }]);
 
   const payload = {
@@ -1602,5 +1616,82 @@ async function logSearchStats(kv, query, found) {
     }
   } catch (e) {
     console.error("Stats log error:", e);
+  }
+}
+
+async function showWatchlist(botToken, chatId, filter, env, userId, editMsgId = null, apiBase = null) {
+  const kv = env.BLACK_BULL_CINEMA || env.DB;
+  let watchlistStr = await kv.get(`watch_${userId}`);
+  let watchlist = watchlistStr ? JSON.parse(watchlistStr) : [];
+  
+  const tgApi = apiBase ? apiBase : `https://api.telegram.org/bot${botToken}`;
+
+  if (watchlist.length === 0) {
+    const text = "🥺 <b>ඔයාගේ Watchlist එක හිස්..</b>\nකැමති Films/Series එකතු කරලා පස්සේ බලන්න.";
+    if (editMsgId) {
+      await fetch(`${tgApi}/editMessageText`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, message_id: editMsgId, text: text, parse_mode: "HTML" })
+      });
+    } else {
+      await fetch(`${tgApi}/sendMessage`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: "HTML" })
+      });
+    }
+    return;
+  }
+
+  let listText = "🎬 <b>My Watchlist</b> 🍿\n\n";
+  let count = 1;
+  for (const mId of watchlist) {
+    let searchKey = null;
+    if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${mId}`);
+    if (!searchKey) searchKey = await kv.get(`idx_${mId}`);
+    if (!searchKey) {
+      const list = await kv.list({ prefix: `idx_${mId}` });
+      if (list.keys.length > 0) searchKey = await kv.get(list.keys[0].name);
+    }
+    
+    if (searchKey) {
+      const dataStr = await kv.get(searchKey);
+      if (dataStr) {
+        const movie = JSON.parse(dataStr);
+        if (filter === "movies" && movie.is_series) continue;
+        if (filter === "series" && !movie.is_series) continue;
+        
+        const icon = movie.is_series ? "📺" : "🎬";
+        listText += `${count}. ${icon} <code>${movie.title} (${movie.year})</code>\n`;
+        count++;
+      }
+    }
+  }
+
+  if (count === 1) {
+    listText += "<i>No items found in this category.</i>";
+  } else {
+    listText += "\n💡 <i>Copy the name by tapping on it and send it to the bot to get the files!</i>";
+  }
+
+  const kb = {
+    inline_keyboard: [
+      [
+        { text: filter === "movies" ? "✅ Movies" : "🎬 Movies", callback_data: `mywatch_movies` },
+        { text: filter === "series" ? "✅ Series" : "📺 Series", callback_data: `mywatch_series` },
+        { text: filter === "all" ? "✅ All" : "🌟 All", callback_data: `mywatch_all` }
+      ]
+    ]
+  };
+
+  if (editMsgId) {
+    await fetch(`${tgApi}/editMessageText`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, message_id: editMsgId, text: listText, parse_mode: "HTML", reply_markup: kb })
+    });
+  } else {
+    await fetch(`${tgApi}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: listText, parse_mode: "HTML", reply_markup: kb })
+    });
   }
 }
