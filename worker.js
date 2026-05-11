@@ -792,10 +792,9 @@ async function handleCallback(cb, env, ctx) {
 
       if (searchKey) {
         const dataStr = await kv.get(searchKey);
-        const movie = JSON.parse(dataStr);
-        const filteredQualities = movie.qualities.filter(q => (q.cat || "Other") === cat);
-
-        let detailText = `🎬 <b>${movie.title} (${movie.year})</b>\nQuality: <b>${cat}</b>\n\nමෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇`;
+        const langCode = await getUserLang(cb.from.id, env);
+        const T = LANGS[langCode] || LANGS.si;
+        let detailText = `🎬 <b>${movie.title} (${movie.year})</b>\nQuality: <b>${cat}</b>\n\n${T.dl_desc || "මෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇"}`;
 
         for (const token of bots) {
           const botUser = await getBotUsername(token);
@@ -805,7 +804,7 @@ async function handleCallback(cb, env, ctx) {
           const currentPoints = kvRef ? parseInt(await kvRef.get("pts_" + cb.from.id) || "0") : 0;
 
           if (currentPoints < 5) {
-            detailText += `\n\n💡 <b>gateway එකට යන්නේ නැතුව කෙලින්ම bot හරහා ඔයාට ඕනි films/series ගන්න පහල තියෙන button එක ඔබන්න.</b> 👇`;
+            detailText += `\n\n💡 ${T.pts_promo || "<b>gateway එකට යන්නේ නැතුව කෙලින්ම bot හරහා ඔයාට ඕනි films/series ගන්න පහල තියෙන button එක ඔබන්න.</b> 👇"}`;
           }
 
           for (const q of filteredQualities) {
@@ -818,22 +817,22 @@ async function handleCallback(cb, env, ctx) {
               // Direct Deep Link via Points
               const directToken = "tk_" + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
               if (kvRef) await kvRef.put(directToken, JSON.stringify({ f: q.q, u: cb.from.id, c: chatId, m: msgId }), { expirationTtl: 3600 });
-              keyboard.push([{ text: `📥 Download (${q.name})${sizeText} ⚡`, url: `https://t.me/${botUser}?start=${directToken}` }]);
+              keyboard.push([{ text: `${T.dl_btn || "📥 Download"} (${q.name})${sizeText} ⚡`, url: `https://t.me/${botUser}?start=${directToken}` }]);
             } else {
               // Standard Gateway
-              keyboard.push([{ text: `📥 Download (${q.name})${sizeText}`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
+              keyboard.push([{ text: `${T.dl_btn || "📥 Download"} (${q.name})${sizeText}`, url: `https://idsmovieplanet.ishangadineth.online/?id=${q.q}&bot=${botUser}` }]);
             }
           }
 
           if (currentPoints < 5) {
-            keyboard.push([{ text: "🎁 Earn Point (Direct Download)", url: `https://t.me/${botUser}?start=ref` }]);
+            keyboard.push([{ text: T.pts_btn || "🎁 Earn Point (Direct Download)", url: `https://t.me/${botUser}?start=ref` }]);
           }
 
           if (movie.trailer) {
             keyboard.push([{ text: "🎬 Watch Trailer", url: movie.trailer }]);
           }
           const safeQuery = originalQuery ? originalQuery.substring(0, 15) : "";
-          keyboard.push([{ text: "🔙 Back to Qualities", callback_data: `view_${movieId}|${safeQuery}` }]);
+          keyboard.push([{ text: T.back_qual || "🔙 Back to Qualities", callback_data: `view_${movieId}|${safeQuery}` }]);
 
           const res = await fetch(`https://api.telegram.org/bot${token}/editMessageCaption`, {
             method: "POST", headers: { "Content-Type": "application/json" },
@@ -1372,7 +1371,10 @@ const LANGS = {
     req_desc: "සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉",
     req_send_btn: "💝 Send Request 💝",
     back_btn: "🔙 Back",
-    qual_sel: "හරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇"
+    qual_sel: "හරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇",
+    dl_desc: "මෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇",
+    dl_btn: "📥 Download",
+    back_qual: "🔙 Back to Qualities"
   },
   en: {
     hello: "👋 Hello {name},\n\nCheck if the movie '<b>{query}</b>' you are looking for is here.. 👇\n\n📌 <i>If you are looking for a series, tap the 'Series' button to filter.</i>",
@@ -1402,7 +1404,10 @@ const LANGS = {
     req_desc: "Sorry, 🥺 I couldn't find this in my database.\nMaybe there's a spelling mistake. 🤔\nPlease check the name again 🙏\n\nIf you don't remember the exact name, search on Google. 🕵️ You can usually find the correct name there ✨\n\nDo you want to send a request to the admins? 😉 It's easy! Do this 👇\n\n👉 First click the button below and select if it's a Movie or a Series. 🎬\n👉 Then click 'Start' on the bot that opens. That's it! 😉",
     req_send_btn: "💝 Send Request 💝",
     back_btn: "🔙 Back",
-    qual_sel: "Alright, select your preferred quality now... 😉👇"
+    qual_sel: "Alright, select your preferred quality now... 😉👇",
+    dl_desc: "Here is the link you requested. Tap the button below to download. 📥👇",
+    dl_btn: "📥 Download",
+    back_qual: "🔙 Back to Qualities"
   },
   hi: {
     hello: "👋 नमस्ते {name},\n\nजांचें कि आप जिस फिल्म '<b>{query}</b>' की तलाश कर रहे हैं वह यहां है या नहीं.. 👇\n\n📌 <i>यदि आप कोई श्रृंखला ढूंढ रहे हैं, तो 'Series' बटन पर टैप करें।</i>",
@@ -1432,7 +1437,10 @@ const LANGS = {
     req_desc: "क्षमा करें, 🥺 मुझे यह मेरे डेटाबेस में नहीं मिला।\nशायद कोई वर्तनी की गलती है। 🤔\nकृपया नाम दोबारा जांचें 🙏\n\nयदि आपको सटीक नाम याद नहीं है, तो Google पर खोजें। 🕵️ आप आमतौर पर वहां सही नाम ढूंढ सकते हैं ✨\n\nक्या आप व्यवस्थापकों को अनुरोध भेजना चाहते हैं? 😉 यह आसान है! यह करें 👇\n\n👉 पहले नीचे दिए गए बटन पर क्लिक करें और चुनें कि यह मूवी है या सीरीज़। 🎬\n👉 फिर खुलने वाले बॉट पर 'Start' पर क्लिक करें। बस! 😉",
     req_send_btn: "💝 Send Request 💝",
     back_btn: "🔙 Back",
-    qual_sel: "ठीक है, अब अपनी पसंदीदा गुणवत्ता चुनें... 😉👇"
+    qual_sel: "ठीक है, अब अपनी पसंदीदा गुणवत्ता चुनें... 😉👇",
+    dl_desc: "यह वह लिंक है जिसके लिए आपने अनुरोध किया था। डाउनलोड करने के लिए नीचे दिए गए बटन पर टैप करें। 📥👇",
+    dl_btn: "📥 डाउनलोड करें",
+    back_qual: "🔙 गुणों पर वापस जाएँ"
   },
   es: {
     hello: "👋 Hola {name},\n\nComprueba si la película '<b>{query}</b>' que buscas está aquí.. 👇\n\n📌 <i>Si buscas una serie, toca el botón 'Series'.</i>",
@@ -1462,7 +1470,10 @@ const LANGS = {
     req_desc: "Lo siento, 🥺 No pude encontrar esto en mi base de datos.\nTal vez hay un error ortográfico. 🤔\nPor favor, comprueba el nombre de nuevo 🙏\n\nSi no recuerdas el nombre exacto, busca en Google. 🕵️ Normalmente puedes encontrar el nombre correcto allí ✨\n\n¿Quieres enviar una solicitud a los administradores? 😉 ¡Es fácil! Haz esto 👇\n\n👉 Primero haz clic en el botón de abajo y selecciona si es una película o una serie. 🎬\n👉 Luego haz clic en 'Start' en el bot que se abre. ¡Eso es todo! 😉",
     req_send_btn: "💝 Send Request 💝",
     back_btn: "🔙 Back",
-    qual_sel: "Muy bien, selecciona tu calidad preferida ahora... 😉👇"
+    qual_sel: "Muy bien, selecciona tu calidad preferida ahora... 😉👇",
+    dl_desc: "Aquí está el enlace que solicitaste. Toca el botón de abajo para descargar. 📥👇",
+    dl_btn: "📥 Descargar",
+    back_qual: "🔙 Volver a Calidades"
   },
   ta: {
     hello: "👋 வணக்கம் {name},\n\nநீங்கள் தேடும் '<b>{query}</b>' திரைப்படம் இங்கே உள்ளதா என்று பார்க்கவும்.. 👇\n\n📌 <i>நீங்கள் ஒரு தொடரை தேடுகிறீர்கள் என்றால், 'Series' பொத்தானை அழுத்தவும்.</i>",
@@ -1492,7 +1503,10 @@ const LANGS = {
     req_desc: "மன்னிக்கவும், 🥺 இதை என் தரவுத்தளத்தில் கண்டுபிடிக்க முடியவில்லை.\nஒருவேளை எழுத்துப் பிழை இருக்கலாம். 🤔\nபெயரை மீண்டும் சரிபார்க்கவும் 🙏\n\nசரியான பெயர் நினைவில் இல்லை என்றால், Google இல் தேடவும். 🕵️ வழக்கமாக சரியான பெயரை அங்கே காணலாம் ✨\n\nநிர்வாகிகளுக்கு கோரிக்கை அனுப்ப வேண்டுமா? 😉 இது எளிது! இதைச் செய்யுங்கள் 👇\n\n👉 முதலில் கீழே உள்ள பொத்தானைக் கிளிக் செய்து, இது திரைப்படமா அல்லது தொடரா என்பதைத் தேர்ந்தெடுக்கவும். 🎬\n👉 பின்னர் திறக்கும் பாட்டில் 'Start' என்பதைக் கிளிக் செய்யவும். அவ்வளவுதான்! 😉",
     req_send_btn: "💝 Send Request 💝",
     back_btn: "🔙 Back",
-    qual_sel: "சரி, இப்போது நீங்கள் விரும்பும் தரத்தைத் தேர்ந்தெடுக்கவும்... 😉👇"
+    qual_sel: "சரி, இப்போது நீங்கள் விரும்பும் தரத்தைத் தேர்ந்தெடுக்கவும்... 😉👇",
+    dl_desc: "நீங்கள் கோரிய இணைப்பு இதோ. பதிவிறக்க கீழே உள்ள பொத்தானைத் தட்டவும். 📥👇",
+    dl_btn: "📥 பதிவிறக்கம்",
+    back_qual: "🔙 தரங்களுக்குத் திரும்பு"
   }
 };
 
