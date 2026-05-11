@@ -989,8 +989,46 @@ async function handleCallback(cb, env, ctx) {
   }
 }
 
+async function uploadToImgBB(fileId, botToken, imgbbKey) {
+  try {
+    const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`);
+    const fileData = await fileRes.json();
+    if (!fileData.ok) return fileId;
+    
+    const fileUrl = `https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`;
+    const imgRes = await fetch(fileUrl);
+    const imgBuffer = await imgRes.arrayBuffer();
+    
+    const formData = new FormData();
+    formData.append("key", imgbbKey);
+    formData.append("image", new Blob([imgBuffer]), "thumb.jpg");
+    
+    const upRes = await fetch("https://api.imgbb.com/1/upload", {
+      method: "POST",
+      body: formData
+    });
+    const upData = await upRes.json();
+    if (upData.success) {
+      return upData.data.url;
+    }
+  } catch (e) {
+    console.error("ImgBB upload error:", e);
+  }
+  return fileId;
+}
+
 async function finalizeSave(chatId, state, env, thumbId) {
   const kv = env.BLACK_BULL_CINEMA;
+  
+  let finalThumbId = thumbId;
+  if (thumbId && env.IMGBB_API_KEY) {
+    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: "⏳ <i>Uploading thumbnail to ImgBB...</i>", parse_mode: "HTML" })
+    });
+    finalThumbId = await uploadToImgBB(thumbId, env.BOT_TOKEN_1, env.IMGBB_API_KEY);
+  }
+
   const searchKey = state.title.toLowerCase().trim();
   const safeTitle = searchKey.replace(/\s+/g, '_');
 
@@ -1018,8 +1056,8 @@ async function finalizeSave(chatId, state, env, thumbId) {
     } catch (e) { }
   }
 
-  if (thumbId) {
-    movieData.thumb = thumbId;
+  if (finalThumbId) {
+    movieData.thumb = finalThumbId;
   }
 
   let exists = movieData.qualities.some(q => q.q === gatewayId);
