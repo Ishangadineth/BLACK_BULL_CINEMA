@@ -673,7 +673,7 @@ async function handleCallback(cb, env, ctx) {
             });
             let data = await res.json();
             
-            if (!data.ok && data.description && data.description.includes("file identifier")) {
+            if (!data.ok) {
               payload.media.media = randomImg;
               res = await fetch(`https://api.telegram.org/bot${token}/editMessageMedia`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
@@ -695,16 +695,21 @@ async function handleCallback(cb, env, ctx) {
                 body: JSON.stringify({ chat_id: chatId, message_id: msgId })
               }).catch(() => {});
               
+              const replyToId = cb.message.reply_to_message ? cb.message.reply_to_message.message_id : null;
+              let sendPayload = { chat_id: chatId, photo: thumb, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } };
+              if (replyToId) sendPayload.reply_to_message_id = replyToId;
+              
               let sendRes = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ chat_id: chatId, photo: thumb, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } })
+                body: JSON.stringify(sendPayload)
               });
               let sendData = await sendRes.json();
               
-              if (!sendData.ok && sendData.description && sendData.description.includes("file identifier")) {
+              if (!sendData.ok) {
+                 sendPayload.photo = randomImg;
                  sendRes = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
                    method: "POST", headers: { "Content-Type": "application/json" },
-                   body: JSON.stringify({ chat_id: chatId, photo: randomImg, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } })
+                   body: JSON.stringify(sendPayload)
                  });
                  sendData = await sendRes.json();
               }

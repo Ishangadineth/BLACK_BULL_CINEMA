@@ -265,18 +265,23 @@ export default {
               let editData = await editRes.json();
               
               if (!editData.ok) {
-                 if (editData.description && editData.description.includes("file identifier")) {
-                    payload.media.media = randomImg;
-                    editRes = await fetch(`${TG_API}/editMessageMedia`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-                    editData = await editRes.json();
-                 }
+                 payload.media.media = randomImg;
+                 editRes = await fetch(`${TG_API}/editMessageMedia`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+                 editData = await editRes.json();
                  
                  if (!editData.ok) {
                     await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msgId }) }).catch(() => {});
-                    let sendData = await (await fetch(`${TG_API}/sendPhoto`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, photo: payload.media.media, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } }) })).json();
                     
-                    if (!sendData.ok && sendData.description && sendData.description.includes("file identifier")) {
-                       await fetch(`${TG_API}/sendPhoto`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, photo: randomImg, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } }) });
+                    const replyToId = cb.message.reply_to_message ? cb.message.reply_to_message.message_id : null;
+                    const sendPayload = { chat_id: chatId, photo: thumb, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } };
+                    if (replyToId) sendPayload.reply_to_message_id = replyToId;
+                    
+                    let sendRes = await fetch(`${TG_API}/sendPhoto`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sendPayload) });
+                    let sendData = await sendRes.json();
+                    
+                    if (!sendData.ok) {
+                       sendPayload.photo = randomImg;
+                       await fetch(`${TG_API}/sendPhoto`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sendPayload) });
                     }
                  }
               }
