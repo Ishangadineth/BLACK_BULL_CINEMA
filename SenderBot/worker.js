@@ -248,7 +248,11 @@ export default {
               
               keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery.substring(0, 15)}` }]);
 
-              const detailText = `🎬 <b>${movie.title} (${movie.year})</b>\n\n⭐️ <b>Rating:</b> ${movie.rating}/10\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
+              let ratingLine = "";
+              if (movie.rating && movie.rating.toUpperCase() !== "N/A") {
+                 ratingLine = `\n⭐️ <b>Rating:</b> ${movie.rating}/10`;
+              }
+              const detailText = `🎬 <b>${movie.title} (${movie.year})</b>${ratingLine}\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
               const randomImg = "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000";
               const thumb = movie.thumb || randomImg;
 
@@ -432,6 +436,20 @@ export default {
           await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id }) }).catch(() => {});
           const filter = data.split("_")[1];
           await showWatchlist(BOT_TOKEN, chatId, filter, env, userId, msgId, TG_API);
+          return new Response("OK");
+        }
+
+        if (data === "watch_delask") {
+          await fetch(`${TG_API}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: cb.id }) }).catch(() => {});
+          await fetch(`${TG_API}/sendMessage`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: "🗑️ <b>මකන්න ඕනේ ෆිල්ම්/සීරීස් එකේ අංකය (Number) පහළින් Type කරලා එවන්න.</b>\n(උදා: 1, 2, 3...)",
+              parse_mode: "HTML",
+              reply_markup: { force_reply: true }
+            })
+          });
           return new Response("OK");
         }
 
@@ -656,6 +674,52 @@ export default {
         const text = msg.text || "";
         const caption = msg.caption || "";
         const combined = `${text} ${caption}`.trim();
+
+        if (msg.reply_to_message && msg.reply_to_message.text && msg.reply_to_message.text.includes("මකන්න ඕනේ ෆිල්ම්/සීරීස් එකේ අංකය")) {
+          const num = parseInt(text);
+          const kv = env.BLACK_BULL_CINEMA;
+          let success = false;
+          
+          if (!isNaN(num) && num > 0) {
+            let viewStr = await kv.get(`watch_view_${chatId}`);
+            if (viewStr) {
+              const viewIds = JSON.parse(viewStr);
+              if (num <= viewIds.length) {
+                const movieIdToDelete = viewIds[num - 1];
+                let mainStr = await kv.get(`watch_${chatId}`);
+                let mainList = mainStr ? JSON.parse(mainStr) : [];
+                mainList = mainList.filter(id => id !== movieIdToDelete);
+                await kv.put(`watch_${chatId}`, JSON.stringify(mainList));
+                success = true;
+              }
+            }
+          }
+          
+          await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msg.message_id }) }).catch(()=>{});
+          await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msg.reply_to_message.message_id }) }).catch(()=>{});
+          
+          if (success) {
+            const sentMsg = await fetch(`${TG_API}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "✅ <b>සාර්ථකව මකා දැමුවා!</b>", parse_mode: "HTML" }) });
+            const sentData = await sentMsg.json();
+            if (sentData.ok && typeof ctx !== 'undefined') {
+              ctx.waitUntil((async () => {
+                await new Promise(r => setTimeout(r, 3000));
+                await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: sentData.result.message_id }) }).catch(()=>{});
+              })());
+            }
+            await showWatchlist(BOT_TOKEN, chatId, "all", env, chatId, null, TG_API);
+          } else {
+            const sentMsg = await fetch(`${TG_API}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "❌ <b>අංකය වැරදියි!</b>", parse_mode: "HTML" }) });
+            const sentData = await sentMsg.json();
+            if (sentData.ok && typeof ctx !== 'undefined') {
+              ctx.waitUntil((async () => {
+                await new Promise(r => setTimeout(r, 3000));
+                await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: sentData.result.message_id }) }).catch(()=>{});
+              })());
+            }
+          }
+          return new Response("OK");
+        }
 
         const state = JSON.parse(await DB.get(STATE_KEY(chatId)) || "{}");
 
@@ -1507,6 +1571,8 @@ async function showWatchlist(botToken, chatId, filter, env, userId, editMsgId = 
 
   let listText = "🎬 <b>My Watchlist</b> 🍿\n\n";
   let count = 1;
+  let currentViewIds = [];
+  
   for (const mId of watchlist) {
     let searchKey = null;
     if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${mId}`);
@@ -1523,12 +1589,15 @@ async function showWatchlist(botToken, chatId, filter, env, userId, editMsgId = 
         if (filter === "movies" && movie.is_series) continue;
         if (filter === "series" && !movie.is_series) continue;
         
+        currentViewIds.push(mId);
         const icon = movie.is_series ? "📺" : "🎬";
-        listText += `${count}. ${icon} <code>${movie.title} (${movie.year})</code>\n`;
+        listText += `${count}. ${icon} <code>${movie.title}</code> (${movie.year})\n`;
         count++;
       }
     }
   }
+
+  await kv.put(`watch_view_${userId}`, JSON.stringify(currentViewIds), { expirationTtl: 86400 });
 
   if (count === 1) {
     listText += "<i>No items found in this category.</i>";
@@ -1542,6 +1611,9 @@ async function showWatchlist(botToken, chatId, filter, env, userId, editMsgId = 
         { text: filter === "movies" ? "✅ Movies" : "🎬 Movies", callback_data: `mywatch_movies` },
         { text: filter === "series" ? "✅ Series" : "📺 Series", callback_data: `mywatch_series` },
         { text: filter === "all" ? "✅ All" : "🌟 All", callback_data: `mywatch_all` }
+      ],
+      [
+        { text: "🗑️ Delete Item", callback_data: `watch_delask` }
       ]
     ]
   };
