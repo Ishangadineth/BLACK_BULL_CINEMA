@@ -709,8 +709,9 @@ async function handleCallback(cb, env, ctx) {
           if (movie.rating && movie.rating.toUpperCase() !== "N/A") {
              ratingLine = `\n⭐️ <b>Rating:</b> ${movie.rating}/10`;
           }
-          const detailText = `🎬 <b>${movie.title} (${movie.year})</b>${ratingLine}\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
-          const randomImg = "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp";
+          const qualSelText = T.qual_sel || "හරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇";
+          const detailText = `🎬 <b>${movie.title} (${movie.year})</b>${ratingLine}\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\n${qualSelText}`;
+          const randomImg = "https://i.ibb.co/fddYQSzT/blackbullcinema.png";
           const thumb = movie.thumb || randomImg;
 
           let success = false;
@@ -1175,7 +1176,7 @@ async function finalizeSave(chatId, state, env, thumbId) {
     `👉 https://t.me/BLACKBULLCINEMA\n\n` +
     `#${movieData.title.replace(/\s+/g, '')} #${movieData.year} #BlackBullCinema`;
 
-  const randomImg = "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp";
+  const randomImg = "https://i.ibb.co/fddYQSzT/blackbullcinema.png";
   const postThumb = movieData.thumb || randomImg;
 
   await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendPhoto`, {
@@ -1765,9 +1766,9 @@ async function sendMovieReplyWithRetry(bots, startIndex, chatId, replyToMsgId, m
     }
 
     const defaultImages = [
-      "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp",
-      "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp",
-      "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp"
+      "https://i.ibb.co/fddYQSzT/blackbullcinema.png",
+      "https://i.ibb.co/fddYQSzT/blackbullcinema.png",
+      "https://i.ibb.co/fddYQSzT/blackbullcinema.png"
     ];
     const randomImg = defaultImages[Math.floor(Math.random() * defaultImages.length)];
     const movieThumb = movieData.thumb || randomImg;
