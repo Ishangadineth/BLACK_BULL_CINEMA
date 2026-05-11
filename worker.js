@@ -792,6 +792,9 @@ async function handleCallback(cb, env, ctx) {
 
       if (searchKey) {
         const dataStr = await kv.get(searchKey);
+        const movie = JSON.parse(dataStr);
+        const filteredQualities = movie.qualities.filter(q => (q.cat || "Other") === cat);
+
         const langCode = await getUserLang(cb.from.id, env);
         const T = LANGS[langCode] || LANGS.si;
         let detailText = `🎬 <b>${movie.title} (${movie.year})</b>\nQuality: <b>${cat}</b>\n\n${T.dl_desc || "මෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇"}`;
