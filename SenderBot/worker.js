@@ -142,6 +142,10 @@ export default {
               [{ text: "🇪🇸 Spanish", callback_data: `setlang_es|${userId}` }, { text: "🇮🇳 Tamil", callback_data: `setlang_ta|${userId}` }]
             ]
           };
+          const query = parts.length > 2 ? parts.slice(2).join("|") : null;
+          if (query) {
+            kb.inline_keyboard.push([{ text: "🔙 Back", callback_data: `search_${query}` }]);
+          }
           await fetch(`${TG_API}/editMessageCaption`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ chat_id: chatId, message_id: msgId, caption: "🌐 <b>Select your preferred language:</b>", parse_mode: "HTML", reply_markup: kb })
@@ -252,8 +256,18 @@ export default {
               if (movie.rating && movie.rating.toUpperCase() !== "N/A") {
                  ratingLine = `\n⭐️ <b>Rating:</b> ${movie.rating}/10`;
               }
-              const detailText = `🎬 <b>${movie.title} (${movie.year})</b>${ratingLine}\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\nහරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇`;
-              const randomImg = "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000";
+              const qualText = T.qual_sel || "හරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇";
+              const detailText = `🎬 <b>${movie.title} (${movie.year})</b>${ratingLine}\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\n${qualText}`;
+              const randomImgs = [
+                "https://i.ibb.co/fddYQSzT/blackbullcinema.png",
+                "https://i.ibb.co/Ng1BMPS1/sofia.png",
+                "https://i.ibb.co/TqJ5f0V9/evelyn.png",
+                "https://i.ibb.co/qLfvJ7pf/ava.png",
+                "https://i.ibb.co/21HSVMc1/olivia.png",
+                "https://i.ibb.co/1tq793s0/clara.png",
+                "https://i.ibb.co/pvntBK3s/lucy.jpg"
+              ];
+              const randomImg = randomImgs[Math.floor(Math.random() * randomImgs.length)];
               const thumb = movie.thumb || randomImg;
 
               const payload = {
@@ -470,11 +484,13 @@ export default {
 
         if (data.startsWith("req_")) {
           const query = data.substring(4);
-          const reqText = `සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉`;
+          const langCode = await getUserLang(userId, env);
+          const T = LANGS[langCode] || LANGS.si;
+          const reqText = T.req_desc || `සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉`;
           const kb = {
             inline_keyboard: [
-              [{ text: "💝 Send Request 💝", callback_data: `reqask_${query}` }],
-              [{ text: "🔙 Back", callback_data: `search_${query}` }]
+              [{ text: T.req_send_btn || "💝 Send Request 💝", callback_data: `reqask_${query}` }],
+              [{ text: T.back_btn || "🔙 Back", callback_data: `search_${query}` }]
             ]
           };
 
@@ -504,15 +520,17 @@ export default {
 
         if (data.startsWith("reqask_")) {
           const query = data.substring(7);
-          const askText = `හරි දැන් ඔයා ඕනි ෆිල්ම් එකක්ද ටීවී සිරීස් එකක්ද කියලා තෝරන්නකෝ.. 🤔`;
+          const langCode = await getUserLang(userId, env);
+          const T = LANGS[langCode] || LANGS.si;
+          const askText = T.req_ask_text || `හරි දැන් ඔයා ඕනි ෆිල්ම් එකක්ද ටීවී සිරීස් එකක්ද කියලා තෝරන්නකෝ.. 🤔`;
           const reqBotUser = env.REQ_BOT_USERNAME || "BLACKBULL_MODERATOR_BOT";
 
           const safeParam = query.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 40);
 
           const kb = {
             inline_keyboard: [[
-              { text: "🎬 ෆිල්ම් එකක්", url: `https://t.me/${reqBotUser}?start=m_${safeParam}` },
-              { text: "📺 සිරී එකක්", url: `https://t.me/${reqBotUser}?start=s_${safeParam}` }
+              { text: T.req_film_btn || "🎬 ෆිල්ම් එකක්", url: `https://t.me/${reqBotUser}?start=m_${safeParam}` },
+              { text: T.req_series_btn || "📺 සිරීස් එකක්", url: `https://t.me/${reqBotUser}?start=s_${safeParam}` }
             ]]
           };
 
@@ -1125,21 +1143,33 @@ export default {
 const LANGS = {
   si: {
     hello: "👋 හෙලෝ {name},\n\nබලන්න ඔයා හොයන '<b>{query}</b>' මෙතන තියනවද කියලා.. 👇\n\n📌 <i>ඔයා හොයන්නේ සීරීස් එකක් නම් 'Series' කියන බට්න් එක ඔබලා ඔයාට ඕනි සීරීස් එක තෝරන්න.</i>",
-    movies: "🎬 චිත්‍රපට",
-    series: "📺 ටීවී සීරීස්",
+    movies: "🎬 Movies",
+    series: "📺 Series",
     not_found: "❌ ඔයා හොයන '<b>{query}</b>' අපේ පද්ධතියේ නෑ.\n\nපහළ බට්න් එක ඔබලා Admin ට Request එකක් දාන්න. 👇",
-    not_found_cat: "🚫 මෙම ගණයට අදාළ ප්‍රතිඵල හමු නොවීය.",
+    not_found_cat: "🚫 No results found for this category.",
     not_here: "මේ list එකේ නෑනේ🥲",
-    change_lang: "🌐 භාෂාව වෙනස් කරන්න",
+    change_lang: "🌐 Change Language",
     req_sent: "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!",
     req_btn: "මේ list එකේ නෑනේ🥲 (Request Movie)",
-    force_sub: "❌ <b>ඔයා අපේ Main Channels දෙකටම Join වෙලා නෑ!</b>\n\nපහළ තියෙන Channels දෙකටම Join වෙලා ඇවිත් ආපහු '✅ මම සම්බන්ධ වුණා' කියන එක ඔබන්න.",
-    joined_btn: "✅ මම සම්බන්ධ වුණා",
-    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ආයුබෝවන්! සාදරයෙන් පිළිගන්න.\nඔයාට අවශ්‍ය මූවීස් සහ සීරීස් පහසුවෙන් ලබා ගැනීමට අපගේ චැනල් එකේ ඇති ලින්ක් එකක් ක්ලික් කර මෙතැනට පැමිණෙන්න.\n\n🛡️ <b>ආරක්ෂිත සහ වේගවත් සේවාව</b>",
-    ch_btn: "📢 නිල චැනලය",
+    force_sub: "❌ <b>ඔයා අපේ Main Channels දෙකටම Join වෙලා නෑ!</b>\n\nපහළ තියෙන Channels දෙකටම Join වෙලා ඇවිත් ආපහු '✅ I have Joined' කියන එක ඔබන්න.",
+    joined_btn: "✅ I have Joined",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ආයුබෝවන්! සාදරයෙන් පිළිගන්න.\nඔයාට අවශ්‍ය මූවීස් සහ සීරීස් පහසුවෙන් ලබා ගැනීමට අපගේ චැනල් එකේ ඇති ලින්ක් එකක් ක්ලික් කර මෙතැනට පැමිණෙන්න.\n\n🛡️ <b>Safe & Fast Delivery</b>",
+    ch_btn: "📢 Official Channel",
     gp_btn: "💬 ප්‍රධාන ගෲප් එක",
     wrong_user: "මේ ඔයා ඉල්ලපු එක නෙවේ🧐",
-    expired: "⚠️ මෙම පණිවිඩය කල් ඉකුත් වී ඇත. කරුණාකර නැවත Search කරන්න! 🔄"
+    expired: "⚠️ මෙම පණිවිඩය කල් ඉකුත් වී ඇත. කරුණාකර නැවත Search කරන්න! 🔄",
+    group_force_sub: "❌ <b>ඔයා අපේ Main Channel එකට Join වෙලා නෑ!</b>\n\nඔයාට ඕනි films/series හොයාගන්න ඕනි නම් පහල channel එකට join වෙලා එන්න. 👇",
+    pts_deduct: "✅ ඔයාගේ points 5 ක් අඩු උනා.\nතව points {pts} ක් තියෙනවා films/series direct download කරගන්න. 🎁",
+    pts_promo: "💡 <b>gateway එකට යන්නේ නැතුව කෙලින්ම bot හරහා ඔයාට ඕනි films/series ගන්න පහල තියෙන button එක ඔබන්න.</b> 👇",
+    pts_btn: "🎁 Earn Point (Direct Download)",
+    pts_more: "🔗 Earn More Points",
+    req_ask_text: "හරි දැන් ඔයා ඕනි ෆිල්ම් එකක්ද ටීවී සිරීස් එකක්ද කියලා තෝරන්නකෝ.. 🤔",
+    req_film_btn: "🎬 ෆිල්ම් එකක්",
+    req_series_btn: "📺 සිරීස් එකක්",
+    req_desc: "සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉",
+    req_send_btn: "💝 Send Request 💝",
+    back_btn: "🔙 Back",
+    qual_sel: "හරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇"
   },
   en: {
     hello: "👋 Hello {name},\n\nCheck if the movie '<b>{query}</b>' you are looking for is here.. 👇\n\n📌 <i>If you are looking for a series, tap the 'Series' button to filter.</i>",
@@ -1157,61 +1187,109 @@ const LANGS = {
     ch_btn: "📢 Official Channel",
     gp_btn: "💬 Main Group",
     wrong_user: "That wasn't requested by you! 🧐",
-    expired: "⚠️ This message has expired. Please search again! 🔄"
+    expired: "⚠️ This message has expired. Please search again! 🔄",
+    group_force_sub: "❌ <b>You haven't joined our Main Channel!</b>\n\nTo search for movies/series, please join our channel below. 👇",
+    pts_deduct: "✅ 5 points deducted.\nYou have {pts} points remaining to download directly. 🎁",
+    pts_promo: "💡 <b>Skip the gateway and download directly from the bot by earning points! Click below.</b> 👇",
+    pts_btn: "🎁 Earn Point (Direct Download)",
+    pts_more: "🔗 Earn More Points",
+    req_ask_text: "Alright, please select if you are looking for a Movie or a TV Series.. 🤔",
+    req_film_btn: "🎬 A Movie",
+    req_series_btn: "📺 A Series",
+    req_desc: "Sorry, 🥺 I couldn't find this in my database.\nMaybe there's a spelling mistake. 🤔\nPlease check the name again 🙏\n\nIf you don't remember the exact name, search on Google. 🕵️ You can usually find the correct name there ✨\n\nDo you want to send a request to the admins? 😉 It's easy! Do this 👇\n\n👉 First click the button below and select if it's a Movie or a Series. 🎬\n👉 Then click 'Start' on the bot that opens. That's it! 😉",
+    req_send_btn: "💝 Send Request 💝",
+    back_btn: "🔙 Back",
+    qual_sel: "Alright, select your preferred quality now... 😉👇"
   },
   hi: {
     hello: "👋 नमस्ते {name},\n\nजांचें कि आप जिस फिल्म '<b>{query}</b>' की तलाश कर रहे हैं वह यहां है या नहीं.. 👇\n\n📌 <i>यदि आप कोई श्रृंखला ढूंढ रहे हैं, तो 'Series' बटन पर टैप करें।</i>",
-    movies: "🎬 फिल्में",
-    series: "📺 श्रृंखला",
+    movies: "🎬 Movies",
+    series: "📺 Series",
     not_found: "❌ फिल्म '<b>{query}</b>' हमारे सिस्टम में नहीं है।\n\nएडमिन से अनुरोध करने के लिए नीचे दिए गए बटन पर टैप करें। 👇",
     not_found_cat: "🚫 इस श्रेणी के लिए कोई परिणाम नहीं मिला।",
     not_here: "😮 यहाँ नहीं है",
-    change_lang: "🌐 भाषा बदलें",
+    change_lang: "🌐 Change Language",
     req_sent: "✅ आपका अनुरोध एडमिन को भेज दिया गया है! हम इसे जल्द ही जोड़ देंगे।",
-    req_btn: "😮 मूवी अनुरोध करें",
-    force_sub: "❌ <b>आप हमारे मुख्य चैनल में शामिल नहीं हुए हैं!</b>\n\nकृपया नीचे दिए गए 2 चैनलों से जुड़ें और '✅ मैं शामिल हो गया' पर क्लिक करें।",
-    joined_btn: "✅ मैं शामिल हो गया",
-    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 नमस्ते! स्वागत है।\nअपनी मनपसंद फिल्में और सीरीज आसानी से पाने के लिए हमारे चैनल में दिए गए लिंक पर क्लिक करके यहां आएं।\n\n🛡️ <b>सुरक्षित और तेज़ डिलीवरी</b>",
-    ch_btn: "📢 आधिकारिक चैनल",
+    req_btn: "😮 Request Movie",
+    force_sub: "❌ <b>आप हमारे मुख्य चैनल में शामिल नहीं हुए हैं!</b>\n\nकृपया नीचे दिए गए 2 चैनलों से जुड़ें और '✅ I have Joined' पर क्लिक करें।",
+    joined_btn: "✅ I have Joined",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 नमस्ते! स्वागत है।\nअपनी मनपसंद फिल्में और सीरीज आसानी से पाने के लिए हमारे चैनल में दिए गए लिंक पर क्लिक करके यहां आएं।\n\n🛡️ <b>Safe & Fast Delivery</b>",
+    ch_btn: "📢 Official Channel",
     gp_btn: "💬 मुख्य समूह",
     wrong_user: "यह आपके द्वारा अनुरोधित नहीं किया गया था! 🧐",
-    expired: "⚠️ यह संदेश समाप्त हो गया है। कृपया फिर से खोजें! 🔄"
+    expired: "⚠️ यह संदेश समाप्त हो गया है। कृपया फिर से खोजें! 🔄",
+    group_force_sub: "❌ <b>आप हमारे मुख्य चैनल में शामिल नहीं हुए हैं!</b>\n\nफिल्में/श्रृंखला खोजने के लिए, कृपया नीचे दिए गए चैनल से जुड़ें। 👇",
+    pts_deduct: "✅ 5 पॉइंट्स कट गए।\nडायरेक्ट डाउनलोड करने के लिए आपके पास {pts} पॉइंट्स बचे हैं। 🎁",
+    pts_promo: "💡 <b>गेटवे को छोड़ें और पॉइंट्स कमाकर बॉट से सीधे डाउनलोड करें! नीचे क्लिक करें।</b> 👇",
+    pts_btn: "🎁 Earn Point (Direct Download)",
+    pts_more: "🔗 Earn More Points",
+    req_ask_text: "ठीक है, कृपया चुनें कि आप मूवी ढूंढ रहे हैं या टीवी सीरीज़.. 🤔",
+    req_film_btn: "🎬 एक मूवी",
+    req_series_btn: "📺 एक सीरीज़",
+    req_desc: "क्षमा करें, 🥺 मुझे यह मेरे डेटाबेस में नहीं मिला।\nशायद कोई वर्तनी की गलती है। 🤔\nकृपया नाम दोबारा जांचें 🙏\n\nयदि आपको सटीक नाम याद नहीं है, तो Google पर खोजें। 🕵️ आप आमतौर पर वहां सही नाम ढूंढ सकते हैं ✨\n\nक्या आप व्यवस्थापकों को अनुरोध भेजना चाहते हैं? 😉 यह आसान है! यह करें 👇\n\n👉 पहले नीचे दिए गए बटन पर क्लिक करें और चुनें कि यह मूवी है या सीरीज़। 🎬\n👉 फिर खुलने वाले बॉट पर 'Start' पर क्लिक करें। बस! 😉",
+    req_send_btn: "💝 Send Request 💝",
+    back_btn: "🔙 Back",
+    qual_sel: "ठीक है, अब अपनी पसंदीदा गुणवत्ता चुनें... 😉👇"
   },
   es: {
     hello: "👋 Hola {name},\n\nComprueba si la película '<b>{query}</b>' que buscas está aquí.. 👇\n\n📌 <i>Si buscas una serie, toca el botón 'Series'.</i>",
-    movies: "🎬 Películas",
+    movies: "🎬 Movies",
     series: "📺 Series",
     not_found: "❌ La película '<b>{query}</b>' no está en nuestro sistema.\n\nToca el botón de abajo para pedirla al administrador. 👇",
     not_found_cat: "🚫 No se encontraron resultados para esta categoría.",
     not_here: "😮 No está aquí",
-    change_lang: "🌐 Cambiar idioma",
+    change_lang: "🌐 Change Language",
     req_sent: "✅ ¡Tu solicitud ha sido enviada al Administrador! La agregaremos pronto.",
-    req_btn: "😮 Solicitar película",
-    force_sub: "❌ <b>¡No te has unido a nuestros canales principales!</b>\n\nÚnete a los 2 canales a continuación y haz clic en '✅ Me he unido'.",
-    joined_btn: "✅ Me he unido",
-    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ¡Hola! Bienvenido.\nPara obtener fácilmente tus películas y series, haz clic en un enlace de nuestro canal para venir aquí.\n\n🛡️ <b>Entrega rápida y segura</b>",
-    ch_btn: "📢 Canal oficial",
+    req_btn: "😮 Request Movie",
+    force_sub: "❌ <b>¡No te has unido a nuestros canales principales!</b>\n\nÚnete a los 2 canales a continuación y haz clic en '✅ I have Joined'.",
+    joined_btn: "✅ I have Joined",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ¡Hola! Bienvenido.\nPara obtener fácilmente tus películas y series, haz clic en un enlace de nuestro canal para venir aquí.\n\n🛡️ <b>Safe & Fast Delivery</b>",
+    ch_btn: "📢 Official Channel",
     gp_btn: "💬 Grupo principal",
     wrong_user: "¡Eso no fue solicitado por ti! 🧐",
-    expired: "⚠️ Este mensaje ha caducado. ¡Vuelve a buscar! 🔄"
+    expired: "⚠️ Este mensaje ha caducado. ¡Vuelve a buscar! 🔄",
+    group_force_sub: "❌ <b>¡No te has unido a nuestro canal principal!</b>\n\nPara buscar películas/series, únete a nuestro canal a continuación. 👇",
+    pts_deduct: "✅ 5 puntos deducidos.\nTe quedan {pts} puntos para descargar directamente. 🎁",
+    pts_promo: "💡 <b>¡Omite el portal y descarga directamente desde el bot ganando puntos! Haz clic abajo.</b> 👇",
+    pts_btn: "🎁 Earn Point (Direct Download)",
+    pts_more: "🔗 Earn More Points",
+    req_ask_text: "Muy bien, selecciona si buscas una película o una serie de TV.. 🤔",
+    req_film_btn: "🎬 Una Película",
+    req_series_btn: "📺 Una Serie",
+    req_desc: "Lo siento, 🥺 No pude encontrar esto en mi base de datos.\nTal vez hay un error ortográfico. 🤔\nPor favor, comprueba el nombre de nuevo 🙏\n\nSi no recuerdas el nombre exacto, busca en Google. 🕵️ Normalmente puedes encontrar el nombre correcto allí ✨\n\n¿Quieres enviar una solicitud a los administradores? 😉 ¡Es fácil! Haz esto 👇\n\n👉 Primero haz clic en el botón de abajo y selecciona si es una película o una serie. 🎬\n👉 Luego haz clic en 'Start' en el bot que se abre. ¡Eso es todo! 😉",
+    req_send_btn: "💝 Send Request 💝",
+    back_btn: "🔙 Back",
+    qual_sel: "Muy bien, selecciona tu calidad preferida ahora... 😉👇"
   },
   ta: {
     hello: "👋 வணக்கம் {name},\n\nநீங்கள் தேடும் '<b>{query}</b>' திரைப்படம் இங்கே உள்ளதா என்று பார்க்கவும்.. 👇\n\n📌 <i>நீங்கள் ஒரு தொடரை தேடுகிறீர்கள் என்றால், 'Series' பொத்தானை அழுத்தவும்.</i>",
-    movies: "🎬 திரைப்படங்கள்",
-    series: "📺 தொடர்கள்",
-    not_found: "❌ '<b>{query}</b>' திரைப்படம் எங்கள் கணினியில் இல்லை.\n\nநிர்வாகியிடம் கோர கீழேயுள்ள பொத்தானை அழுத்தவும். 👇",
+    movies: "🎬 Movies",
+    series: "📺 Series",
+    not_found: "❌ '<b>{query}</b>' திரைப்படம் எங்கள் கணினியில் இல்லை.\n\nநிவாகியிடம் கோர கீழேயுள்ள பொத்தானை அழுத்தவும். 👇",
     not_found_cat: "🚫 இந்த வகைக்கு முடிவுகள் எதுவும் கிடைக்கவில்லை.",
     not_here: "😮 இங்கே இல்லை",
-    change_lang: "🌐 மொழியை மாற்றவும்",
+    change_lang: "🌐 Change Language",
     req_sent: "✅ உங்கள் கோரிக்கை நிர்வாகிக்கு அனுப்பப்பட்டது! விரைவில் சேர்ப்போம்.",
-    req_btn: "😮 திரைப்படத்தை கோருங்கள்",
-    force_sub: "❌ <b>எங்கள் முக்கிய சேனல்களில் நீங்கள் சேரவில்லை!</b>\n\nகீழே உள்ள 2 சேனல்களில் சேர்ந்து '✅ நான் சேர்ந்துவிட்டேன்' என்பதைக் கிளிக் செய்யவும்.",
-    joined_btn: "✅ நான் சேர்ந்துவிட்டேன்",
-    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 வணக்கம்! வரவேற்கிறோம்.\nஉங்களுக்குத் தேவையான திரைப்படங்கள் மற்றும் தொடர்களை எளிதாகப் பெற, எங்கள் சேனலில் உள்ள இணைப்பைக் கிளிக் செய்து இங்கே வரவும்.\n\n🛡️ <b>பாதுகாப்பான மற்றும் வேகமான விநியோகம்</b>",
-    ch_btn: "📢 அதிகாரப்பூர்வ சேனல்",
+    req_btn: "😮 Request Movie",
+    force_sub: "❌ <b>எங்கள் முக்கிய சேனல்களில் நீங்கள் சேரவில்லை!</b>\n\nகீழே உள்ள 2 சேனல்களில் சேர்ந்து '✅ I have Joined' என்பதைக் கிளிக் செய்யவும்.",
+    joined_btn: "✅ I have Joined",
+    welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 வணக்கம்! வரவேற்கிறோம்.\nஉங்களுக்குத் தேவையான திரைப்படங்கள் மற்றும் தொடர்களை எளிதாகப் பெற, எங்கள் சேனலில் உள்ள இணைப்பைக் கிளிக் செய்து இங்கே வரவும்.\n\n🛡️ <b>Safe & Fast Delivery</b>",
+    ch_btn: "📢 Official Channel",
     gp_btn: "💬 முக்கிய குழு",
     wrong_user: "இது உங்களால் கோரப்படவில்லை! 🧐",
-    expired: "⚠️ இந்த செய்தி காலாவதியாகிவிட்டது. மீண்டும் தேடவும்! 🔄"
+    expired: "⚠️ இந்த செய்தி காலாவதியாகிவிட்டது. மீண்டும் தேடவும்! 🔄",
+    group_force_sub: "❌ <b>எங்கள் முக்கிய சேனலில் நீங்கள் சேரவில்லை!</b>\n\nதிரைப்படங்கள்/தொடர்களைத் தேட, கீழே உள்ள எங்கள் சேனலில் சேரவும். 👇",
+    pts_deduct: "✅ 5 புள்ளிகள் கழிக்கப்பட்டன.\nநேரடியாகப் பதிவிறக்க {pts} புள்ளிகள் மீதமுள்ளன. 🎁",
+    pts_promo: "💡 <b>கேட்வேயைத் தவிர்த்து, புள்ளிகளைப் பெற்று பாட்டிலிருந்து நேரடியாகப் பதிவிறக்கவும்! கீழே கிளிக் செய்யவும்.</b> 👇",
+    pts_btn: "🎁 Earn Point (Direct Download)",
+    pts_more: "🔗 Earn More Points",
+    req_ask_text: "சரி, நீங்கள் தேடுவது திரைப்படமா அல்லது தொலைக்காட்சித் தொடரா என்பதைத் தேர்ந்தெடுக்கவும்.. 🤔",
+    req_film_btn: "🎬 ஒரு திரைப்படம்",
+    req_series_btn: "📺 ஒரு தொடர்",
+    req_desc: "மன்னிக்கவும், 🥺 இதை என் தரவுத்தளத்தில் கண்டுபிடிக்க முடியவில்லை.\nஒருவேளை எழுத்துப் பிழை இருக்கலாம். 🤔\nபெயரை மீண்டும் சரிபார்க்கவும் 🙏\n\nசரியான பெயர் நினைவில் இல்லை என்றால், Google இல் தேடவும். 🕵️ வழக்கமாக சரியான பெயரை அங்கே காணலாம் ✨\n\nநிர்வாகிகளுக்கு கோரிக்கை அனுப்ப வேண்டுமா? 😉 இது எளிது! இதைச் செய்யுங்கள் 👇\n\n👉 முதலில் கீழே உள்ள பொத்தானைக் கிளிக் செய்து, இது திரைப்படமா அல்லது தொடரா என்பதைத் தேர்ந்தெடுக்கவும். 🎬\n👉 பின்னர் திறக்கும் பாட்டில் 'Start' என்பதைக் கிளிக் செய்யவும். அவ்வளவுதான்! 😉",
+    req_send_btn: "💝 Send Request 💝",
+    back_btn: "🔙 Back",
+    qual_sel: "சரி, இப்போது நீங்கள் விரும்பும் தரத்தைத் தேர்ந்தெடுக்கவும்... 😉👇"
   }
 };
 
@@ -1324,9 +1402,13 @@ async function sendSearchResults(api, botToken, chatId, userId, replyToMsgId, qu
   if (filterType === "series") filtered = results.filter(r => r.is_series);
 
   const defaultImages = [
-    "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000",
-    "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000",
-    "https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=1000"
+    "https://i.ibb.co/fddYQSzT/blackbullcinema.png",
+    "https://i.ibb.co/Ng1BMPS1/sofia.png",
+    "https://i.ibb.co/TqJ5f0V9/evelyn.png",
+    "https://i.ibb.co/qLfvJ7pf/ava.png",
+    "https://i.ibb.co/21HSVMc1/olivia.png",
+    "https://i.ibb.co/1tq793s0/clara.png",
+    "https://i.ibb.co/pvntBK3s/lucy.jpg"
   ];
   const randomImg = defaultImages[Math.floor(Math.random() * defaultImages.length)];
   let text = T.hello ? T.hello.replace("{name}", firstName).replace("{query}", query) : `👋 Hello ${firstName},\n\nSee if '${query}' is available here.. 👇`;
@@ -1340,7 +1422,8 @@ async function sendSearchResults(api, botToken, chatId, userId, replyToMsgId, qu
   for (const r of filtered) {
     const safeQuery = query.substring(0, 20);
     const mId = r.id ? r.id : r._key.substring(0, 30);
-    keyboard.push([{ text: `🎬 ${r.title} (${r.year})`, callback_data: `view_${mId}|${safeQuery}` }]);
+    const icon = r.is_series ? "📺" : "🎬";
+    keyboard.push([{ text: `${icon} ${r.title} (${r.year})`, callback_data: `view_${mId}|${safeQuery}` }]);
   }
   if (filtered.length === 0) keyboard.push([{ text: T.not_found_cat, callback_data: "none" }]);
   keyboard.push([{ text: T.not_here, callback_data: `req_${query.substring(0, 40)}|${userId}` }]);
@@ -1353,7 +1436,7 @@ async function sendSearchResults(api, botToken, chatId, userId, replyToMsgId, qu
   } catch(e) {}
   keyboard.push([{ text: "❤️ Watchlist", url: `https://t.me/${botUser}?start=watchlist` }]);
 
-  keyboard.push([{ text: T.change_lang, callback_data: `lang_menu|${userId}` }]);
+  keyboard.push([{ text: T.change_lang, callback_data: `lang_menu|${userId}|${query.substring(0, 40)}` }]);
 
   const payload = { chat_id: chatId, reply_markup: { inline_keyboard: keyboard } };
   let tgApiUrl = `${api}/sendPhoto`;
