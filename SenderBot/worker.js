@@ -258,10 +258,28 @@ export default {
                 media: { type: "photo", media: thumb, caption: detailText, parse_mode: "HTML" },
                 reply_markup: { inline_keyboard: keyboard }
               };
-              await fetch(`${TG_API}/editMessageMedia`, {
+              let editRes = await fetch(`${TG_API}/editMessageMedia`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
               });
+              let editData = await editRes.json();
+              
+              if (!editData.ok) {
+                 if (editData.description && editData.description.includes("file identifier")) {
+                    payload.media.media = randomImg;
+                    editRes = await fetch(`${TG_API}/editMessageMedia`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+                    editData = await editRes.json();
+                 }
+                 
+                 if (!editData.ok) {
+                    await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msgId }) }).catch(() => {});
+                    let sendData = await (await fetch(`${TG_API}/sendPhoto`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, photo: payload.media.media, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } }) })).json();
+                    
+                    if (!sendData.ok && sendData.description && sendData.description.includes("file identifier")) {
+                       await fetch(`${TG_API}/sendPhoto`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, photo: randomImg, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } }) });
+                    }
+                 }
+              }
             }
           }
           return new Response("OK");

@@ -659,6 +659,7 @@ async function handleCallback(cb, env, ctx) {
           const randomImg = "https://i.ibb.co/1J98HrbR/ipl2026schedule-1773243338.webp";
           const thumb = movie.thumb || randomImg;
 
+          let success = false;
           for (const token of bots) {
             const payload = {
               chat_id: chatId,
@@ -666,11 +667,50 @@ async function handleCallback(cb, env, ctx) {
               media: { type: "photo", media: thumb, caption: detailText, parse_mode: "HTML" },
               reply_markup: { inline_keyboard: keyboard }
             };
-            const res = await fetch(`https://api.telegram.org/bot${token}/editMessageMedia`, {
+            let res = await fetch(`https://api.telegram.org/bot${token}/editMessageMedia`, {
               method: "POST", headers: { "Content-Type": "application/json" },
               body: JSON.stringify(payload)
             });
-            if ((await res.json()).ok) break;
+            let data = await res.json();
+            
+            if (!data.ok && data.description && data.description.includes("file identifier")) {
+              payload.media.media = randomImg;
+              res = await fetch(`https://api.telegram.org/bot${token}/editMessageMedia`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+              });
+              data = await res.json();
+            }
+            
+            if (data.ok) {
+              success = true;
+              break;
+            }
+          }
+
+          if (!success) {
+            for (const token of bots) {
+              await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id: chatId, message_id: msgId })
+              }).catch(() => {});
+              
+              let sendRes = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id: chatId, photo: thumb, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } })
+              });
+              let sendData = await sendRes.json();
+              
+              if (!sendData.ok && sendData.description && sendData.description.includes("file identifier")) {
+                 sendRes = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+                   method: "POST", headers: { "Content-Type": "application/json" },
+                   body: JSON.stringify({ chat_id: chatId, photo: randomImg, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } })
+                 });
+                 sendData = await sendRes.json();
+              }
+              
+              if (sendData.ok) break;
+            }
           }
         }
       }
