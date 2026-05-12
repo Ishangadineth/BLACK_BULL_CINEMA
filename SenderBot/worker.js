@@ -265,7 +265,7 @@ export default {
                 "https://i.ibb.co/qLfvJ7pf/ava.png",
                 "https://i.ibb.co/21HSVMc1/olivia.png",
                 "https://i.ibb.co/1tq793s0/clara.png",
-                "https://i.ibb.co/pvntBK3s/lucy.jpg"
+                "https://i.ibb.co/t0y016p/sofia.jpg"
               ];
               const randomImg = randomImgs[Math.floor(Math.random() * randomImgs.length)];
               const thumb = movie.thumb || randomImg;
@@ -861,7 +861,9 @@ export default {
               } catch (e) { }
 
               const remainingPoints = currentPoints - 5;
-              const deductMsg = `✅ ඔයාගේ points 5 ක් අඩු උනා.\nතව points ${remainingPoints} ක් තියෙනවා films/series direct download කරගන්න. 🎁`;
+              const langCode = await getUserLang(userId, env);
+              const T = LANGS[langCode] || LANGS.si;
+              const deductMsg = T.pts_deduct ? T.pts_deduct.replace("{pts}", remainingPoints) : `✅ ඔයාගේ points 5 ක් අඩු උනා.\nතව points ${remainingPoints} ක් තියෙනවා films/series direct download කරගන්න. 🎁`;
               const deductKb = { inline_keyboard: [[{ text: "🔗 Earn More Points", url: `https://t.me/${botUser}?start=ref` }]] };
               
               await tgSend(TG_API, chatId, deductMsg, deductKb.inline_keyboard);
@@ -951,7 +953,9 @@ export default {
                   if (bData.ok) botUser = bData.result.username;
                 } catch (e) { }
 
-                const promoMsg = `💡 <b>gateway එකට යන්නේ නැතුව කෙලින්ම bot හරහා ඔයාට ඕනි films/series ගන්න පහල තියෙන button එක ඔබන්න.</b> 👇`;
+                const langCode = await getUserLang(userId, env);
+                const T = LANGS[langCode] || LANGS.si;
+                const promoMsg = T.pts_promo || `💡 <b>gateway එකට යන්නේ නැතුව කෙලින්ම bot හරහා ඔයාට ඕනි films/series ගන්න පහල තියෙන button එක ඔබන්න.</b> 👇`;
                 const promoKb = [[{ text: "🎁 Earn Point (Direct Download)", url: `https://t.me/${botUser}?start=ref` }]];
                 await tgSend(TG_API, chatId, promoMsg, promoKb);
 
@@ -985,7 +989,16 @@ export default {
           const refLink = `https://t.me/${botUser}?start=ref_${userId}`;
           const msg = `🎁 <b>Referral Program</b>\n\nInvite your friends and earn points to bypass the download gateway! (You get 15 Points, they get 10 Points)\n\n⭐️ <b>Your Points:</b> ${currentPoints}\n\n🔗 <b>Your Invite Link:</b>\n<code>${refLink}</code>\n\n<i>Share this link with your friends to start earning!</i>`;
 
-          await tgSend(TG_API, chatId, msg, [[{ text: "🔗 Share Link", url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent("Join this awesome movie bot!")}` }]]);
+          await fetch(`${TG_API}/sendPhoto`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: chatId,
+              photo: "https://i.ibb.co/hx7fjD7f/refimg.jpg",
+              caption: msg,
+              parse_mode: "HTML",
+              reply_markup: { inline_keyboard: [[{ text: "🔗 Share Link", url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent("Join this awesome movie bot!")}` }]] }
+            })
+          });
           return new Response("OK");
         }
         else if (text === "/ref list" && isPrivate) {
@@ -1150,12 +1163,12 @@ const LANGS = {
     not_here: "මේ list එකේ නෑනේ🥲",
     change_lang: "🌐 Change Language",
     req_sent: "✅ ඔයාගේ Request එක Admin ට යැව්වා. ඉක්මනින්ම එකතු කරන්නම්!",
-    req_btn: "මේ list එකේ නෑනේ🥲 (Request Movie)",
+    req_btn: "😮 Request Movie",
     force_sub: "❌ <b>ඔයා අපේ Main Channels දෙකටම Join වෙලා නෑ!</b>\n\nපහළ තියෙන Channels දෙකටම Join වෙලා ඇවිත් ආපහු '✅ I have Joined' කියන එක ඔබන්න.",
     joined_btn: "✅ I have Joined",
     welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ආයුබෝවන්! සාදරයෙන් පිළිගන්න.\nඔයාට අවශ්‍ය මූවීස් සහ සීරීස් පහසුවෙන් ලබා ගැනීමට අපගේ චැනල් එකේ ඇති ලින්ක් එකක් ක්ලික් කර මෙතැනට පැමිණෙන්න.\n\n🛡️ <b>Safe & Fast Delivery</b>",
     ch_btn: "📢 Official Channel",
-    gp_btn: "💬 ප්‍රධාන ගෲප් එක",
+    gp_btn: "💬 Main Group",
     wrong_user: "මේ ඔයා ඉල්ලපු එක නෙවේ🧐",
     expired: "⚠️ මෙම පණිවිඩය කල් ඉකුත් වී ඇත. කරුණාකර නැවත Search කරන්න! 🔄",
     group_force_sub: "❌ <b>ඔයා අපේ Main Channel එකට Join වෙලා නෑ!</b>\n\nඔයාට ඕනි films/series හොයාගන්න ඕනි නම් පහල channel එකට join වෙලා එන්න. 👇",
@@ -1164,8 +1177,8 @@ const LANGS = {
     pts_btn: "🎁 Earn Point (Direct Download)",
     pts_more: "🔗 Earn More Points",
     req_ask_text: "හරි දැන් ඔයා ඕනි ෆිල්ම් එකක්ද ටීවී සිරීස් එකක්ද කියලා තෝරන්නකෝ.. 🤔",
-    req_film_btn: "🎬 ෆිල්ම් එකක්",
-    req_series_btn: "📺 සිරීස් එකක්",
+    req_film_btn: "🎬 A Movie",
+    req_series_btn: "📺 A Series",
     req_desc: "සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉",
     req_send_btn: "💝 Send Request 💝",
     back_btn: "🔙 Back",
@@ -1215,7 +1228,7 @@ const LANGS = {
     joined_btn: "✅ I have Joined",
     welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 नमस्ते! स्वागत है।\nअपनी मनपसंद फिल्में और सीरीज आसानी से पाने के लिए हमारे चैनल में दिए गए लिंक पर क्लिक करके यहां आएं।\n\n🛡️ <b>Safe & Fast Delivery</b>",
     ch_btn: "📢 Official Channel",
-    gp_btn: "💬 मुख्य समूह",
+    gp_btn: "💬 Main Group",
     wrong_user: "यह आपके द्वारा अनुरोधित नहीं किया गया था! 🧐",
     expired: "⚠️ यह संदेश समाप्त हो गया है। कृपया फिर से खोजें! 🔄",
     group_force_sub: "❌ <b>आप हमारे मुख्य चैनल में शामिल नहीं हुए हैं!</b>\n\nफिल्में/श्रृंखला खोजने के लिए, कृपया नीचे दिए गए चैनल से जुड़ें। 👇",
@@ -1224,8 +1237,8 @@ const LANGS = {
     pts_btn: "🎁 Earn Point (Direct Download)",
     pts_more: "🔗 Earn More Points",
     req_ask_text: "ठीक है, कृपया चुनें कि आप मूवी ढूंढ रहे हैं या टीवी सीरीज़.. 🤔",
-    req_film_btn: "🎬 एक मूवी",
-    req_series_btn: "📺 एक सीरीज़",
+    req_film_btn: "🎬 A Movie",
+    req_series_btn: "📺 A Series",
     req_desc: "क्षमा करें, 🥺 मुझे यह मेरे डेटाबेस में नहीं मिला।\nशायद कोई वर्तनी की गलती है। 🤔\nकृपया नाम दोबारा जांचें 🙏\n\nयदि आपको सटीक नाम याद नहीं है, तो Google पर खोजें। 🕵️ आप आमतौर पर वहां सही नाम ढूंढ सकते हैं ✨\n\nक्या आप व्यवस्थापकों को अनुरोध भेजना चाहते हैं? 😉 यह आसान है! यह करें 👇\n\n👉 पहले नीचे दिए गए बटन पर क्लिक करें और चुनें कि यह मूवी है या सीरीज़। 🎬\n👉 फिर खुलने वाले बॉट पर 'Start' पर क्लिक करें। बस! 😉",
     req_send_btn: "💝 Send Request 💝",
     back_btn: "🔙 Back",
@@ -1245,7 +1258,7 @@ const LANGS = {
     joined_btn: "✅ I have Joined",
     welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ¡Hola! Bienvenido.\nPara obtener fácilmente tus películas y series, haz clic en un enlace de nuestro canal para venir aquí.\n\n🛡️ <b>Safe & Fast Delivery</b>",
     ch_btn: "📢 Official Channel",
-    gp_btn: "💬 Grupo principal",
+    gp_btn: "💬 Main Group",
     wrong_user: "¡Eso no fue solicitado por ti! 🧐",
     expired: "⚠️ Este mensaje ha caducado. ¡Vuelve a buscar! 🔄",
     group_force_sub: "❌ <b>¡No te has unido a nuestro canal principal!</b>\n\nPara buscar películas/series, únete a nuestro canal a continuación. 👇",
@@ -1254,8 +1267,8 @@ const LANGS = {
     pts_btn: "🎁 Earn Point (Direct Download)",
     pts_more: "🔗 Earn More Points",
     req_ask_text: "Muy bien, selecciona si buscas una película o una serie de TV.. 🤔",
-    req_film_btn: "🎬 Una Película",
-    req_series_btn: "📺 Una Serie",
+    req_film_btn: "🎬 A Movie",
+    req_series_btn: "📺 A Series",
     req_desc: "Lo siento, 🥺 No pude encontrar esto en mi base de datos.\nTal vez hay un error ortográfico. 🤔\nPor favor, comprueba el nombre de nuevo 🙏\n\nSi no recuerdas el nombre exacto, busca en Google. 🕵️ Normalmente puedes encontrar el nombre correcto allí ✨\n\n¿Quieres enviar una solicitud a los administradores? 😉 ¡Es fácil! Haz esto 👇\n\n👉 Primero haz clic en el botón de abajo y selecciona si es una película o una serie. 🎬\n👉 Luego haz clic en 'Start' en el bot que se abre. ¡Eso es todo! 😉",
     req_send_btn: "💝 Send Request 💝",
     back_btn: "🔙 Back",
@@ -1275,7 +1288,7 @@ const LANGS = {
     joined_btn: "✅ I have Joined",
     welcome_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 வணக்கம்! வரவேற்கிறோம்.\nஉங்களுக்குத் தேவையான திரைப்படங்கள் மற்றும் தொடர்களை எளிதாகப் பெற, எங்கள் சேனலில் உள்ள இணைப்பைக் கிளிக் செய்து இங்கே வரவும்.\n\n🛡️ <b>Safe & Fast Delivery</b>",
     ch_btn: "📢 Official Channel",
-    gp_btn: "💬 முக்கிய குழு",
+    gp_btn: "💬 Main Group",
     wrong_user: "இது உங்களால் கோரப்படவில்லை! 🧐",
     expired: "⚠️ இந்த செய்தி காலாவதியாகிவிட்டது. மீண்டும் தேடவும்! 🔄",
     group_force_sub: "❌ <b>எங்கள் முக்கிய சேனலில் நீங்கள் சேரவில்லை!</b>\n\nதிரைப்படங்கள்/தொடர்களைத் தேட, கீழே உள்ள எங்கள் சேனலில் சேரவும். 👇",
@@ -1284,8 +1297,8 @@ const LANGS = {
     pts_btn: "🎁 Earn Point (Direct Download)",
     pts_more: "🔗 Earn More Points",
     req_ask_text: "சரி, நீங்கள் தேடுவது திரைப்படமா அல்லது தொலைக்காட்சித் தொடரா என்பதைத் தேர்ந்தெடுக்கவும்.. 🤔",
-    req_film_btn: "🎬 ஒரு திரைப்படம்",
-    req_series_btn: "📺 ஒரு தொடர்",
+    req_film_btn: "🎬 A Movie",
+    req_series_btn: "📺 A Series",
     req_desc: "மன்னிக்கவும், 🥺 இதை என் தரவுத்தளத்தில் கண்டுபிடிக்க முடியவில்லை.\nஒருவேளை எழுத்துப் பிழை இருக்கலாம். 🤔\nபெயரை மீண்டும் சரிபார்க்கவும் 🙏\n\nசரியான பெயர் நினைவில் இல்லை என்றால், Google இல் தேடவும். 🕵️ வழக்கமாக சரியான பெயரை அங்கே காணலாம் ✨\n\nநிர்வாகிகளுக்கு கோரிக்கை அனுப்ப வேண்டுமா? 😉 இது எளிது! இதைச் செய்யுங்கள் 👇\n\n👉 முதலில் கீழே உள்ள பொத்தானைக் கிளிக் செய்து, இது திரைப்படமா அல்லது தொடரா என்பதைத் தேர்ந்தெடுக்கவும். 🎬\n👉 பின்னர் திறக்கும் பாட்டில் 'Start' என்பதைக் கிளிக் செய்யவும். அவ்வளவுதான்! 😉",
     req_send_btn: "💝 Send Request 💝",
     back_btn: "🔙 Back",
@@ -1408,7 +1421,7 @@ async function sendSearchResults(api, botToken, chatId, userId, replyToMsgId, qu
     "https://i.ibb.co/qLfvJ7pf/ava.png",
     "https://i.ibb.co/21HSVMc1/olivia.png",
     "https://i.ibb.co/1tq793s0/clara.png",
-    "https://i.ibb.co/pvntBK3s/lucy.jpg"
+    "https://i.ibb.co/t0y016p/sofia.jpg"
   ];
   const randomImg = defaultImages[Math.floor(Math.random() * defaultImages.length)];
   let text = T.hello ? T.hello.replace("{name}", firstName).replace("{query}", query) : `👋 Hello ${firstName},\n\nSee if '${query}' is available here.. 👇`;
