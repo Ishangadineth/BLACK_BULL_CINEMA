@@ -341,7 +341,7 @@ export default {
 
           const successKb = {
             inline_keyboard: [
-              [{ text: "🔗 Share Link", url: `https://t.me/share/url?url=https://t.me/idsmovieplanetbot&text=Join this movie bot!` }]
+              [{ text: "🔗 Share Link", url: `https://t.me/share/url?url=https://t.me/Lucy_BLACKBULL_bot?start=ref&text=Join this movie bot!` }]
             ]
           };
 
@@ -597,9 +597,27 @@ export default {
             if (fbState.step === "waiting_ss" && msg.photo) {
               await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: userId, message_id: msgId }) }).catch(() => {});
               const photoId = msg.photo[msg.photo.length - 1].file_id;
-              const providedName = msg.caption || firstName;
+              fbState.photo1 = photoId;
+              fbState.step = "waiting_profile";
+              
+              const langCode = await getUserLang(LANG_KV, userId);
+              const T = LOCALES[langCode] || LOCALES.si;
+              
+              await fetch(`${TG_API}/editMessageText`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id: userId, message_id: fbState.bot_msg_id, text: T.fb_ask_name, parse_mode: "HTML" })
+              });
+              await KV.put(`fb_state_${userId}`, JSON.stringify(fbState));
+              return new Response("OK");
+            }
 
-              const adminText = `🆕 <b>FB Follow Verification!</b>\n\n👤 <b>User:</b> <a href="tg://user?id=${userId}">${firstName}</a> (<code>${userId}</code>)\n✍️ <b>FB Name:</b> <code>${providedName}</code>`;
+            if (fbState.step === "waiting_profile" && (text || msg.photo) && !(text || "").startsWith("/")) {
+              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: userId, message_id: msgId }) }).catch(() => {});
+              
+              const providedName = msg.caption || text || firstName;
+              const photo2 = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
+
+              const adminText = `🆕 <b>FB Follow Verification!</b>\n\n👤 <b>User:</b> <a href="tg://user?id=${userId}">${firstName}</a> (<code>${userId}</code>)\n✍️ <b>FB Name:</b> <code>${providedName}</code>\n<i>(Follow SS attached to this message)</i>`;
               const adminKb = {
                 inline_keyboard: [
                   [{ text: "✅ Verified", callback_data: `fb_verify_v_${userId}` }, { text: "❌ Not Verified", callback_data: `fb_reject_r_${userId}` }]
@@ -608,9 +626,18 @@ export default {
               
               await fetch(`${TG_API}/sendPhoto`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ chat_id: VERIFY_CHANNEL, photo: photoId, caption: adminText, parse_mode: "HTML", reply_markup: adminKb })
+                body: JSON.stringify({ chat_id: VERIFY_CHANNEL, photo: fbState.photo1, caption: adminText, parse_mode: "HTML", reply_markup: adminKb })
               });
 
+              if (photo2) {
+                await fetch(`${TG_API}/sendPhoto`, {
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ chat_id: VERIFY_CHANNEL, photo: photo2, caption: `📸 <b>Profile Screenshot</b>\n👤 <b>From:</b> <code>${userId}</code>`, parse_mode: "HTML" })
+                });
+              }
+
+              const langCode = await getUserLang(LANG_KV, userId);
+              const T = LOCALES[langCode] || LOCALES.si;
               await fetch(`${TG_API}/editMessageText`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ chat_id: userId, message_id: fbState.bot_msg_id, text: T.fb_final, parse_mode: "HTML" })
