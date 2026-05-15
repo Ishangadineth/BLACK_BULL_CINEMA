@@ -252,6 +252,13 @@ export default {
               } catch (e) { }
               keyboard.push([{ text: "🎁 Earn Point (direct download)", url: `https://t.me/${refBotUser}?start=ref` }]);
               
+              const kvRef = env.BLACKBULL_REF_POINT;
+              const fbEarned = kvRef ? await kvRef.get(`fb_earned_${userId}`) : null;
+              const reqBotUser = env.REQ_BOT_USERNAME || "BLACKBULL_MODERATOR_BOT";
+              if (!fbEarned) {
+                keyboard.push([{ text: T.fb_ref_btn || "🔵 Follow us on Facebook (Earn 75 Pts)", url: `https://t.me/${reqBotUser}?start=fb_pts` }]);
+              }
+
               keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${originalQuery.substring(0, 15)}` }]);
 
               let ratingLine = "";
@@ -377,6 +384,11 @@ export default {
 
             if (currentPoints < 5) {
               keyboard.push([{ text: T.pts_btn || "🎁 Earn Point (Direct Download)", url: `https://t.me/${botUser}?start=ref` }]);
+              const fbEarned = kvRef ? await kvRef.get(`fb_earned_${userId}`) : null;
+              const reqBotUser = env.REQ_BOT_USERNAME || "BLACKBULL_MODERATOR_BOT";
+              if (!fbEarned) {
+                keyboard.push([{ text: T.fb_ref_btn || "🔵 Follow us on Facebook (Earn 75 Pts)", url: `https://t.me/${reqBotUser}?start=fb_pts` }]);
+              }
             }
 
             if (movie.trailer) {
@@ -961,6 +973,14 @@ export default {
                 const T = LANGS[langCode] || LANGS.si;
                 const promoMsg = T.pts_promo || `💡 <b>gateway එකට යන්නේ නැතුව කෙලින්ම bot හරහා ඔයාට ඕනි films/series ගන්න පහල තියෙන button එක ඔබන්න.</b> 👇`;
                 const promoKb = [[{ text: T.pts_btn || "🎁 Earn Point (Direct Download)", url: `https://t.me/${botUser}?start=ref` }]];
+                
+                const kvRef = env.BLACKBULL_REF_POINT;
+                const fbEarned = kvRef ? await kvRef.get(`fb_earned_${userId}`) : null;
+                const reqBotUser = env.REQ_BOT_USERNAME || "BLACKBULL_MODERATOR_BOT";
+                if (!fbEarned) {
+                  promoKb.push([{ text: T.fb_ref_btn || "🔵 Follow us on Facebook (Earn 75 Pts)", url: `https://t.me/${reqBotUser}?start=fb_pts` }]);
+                }
+
                 await tgSend(TG_API, chatId, promoMsg, promoKb);
 
               } catch (e) {
