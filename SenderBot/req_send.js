@@ -310,7 +310,7 @@ export default {
 
         else if (data.startsWith("fb_verify_") || data.startsWith("fb_reject_")) {
           const isApprove = data.startsWith("fb_verify_");
-          const targetId = data.split("_")[2];
+          const targetId = data.split("_")[3];
           
           const kb = {
             inline_keyboard: [
@@ -350,10 +350,14 @@ export default {
             body: JSON.stringify({ chat_id: targetId, text: T.fb_success, parse_mode: "HTML", reply_markup: successKb })
           });
 
+          const adminName = cb.from.first_name;
           await fetch(`${TG_API}/editMessageReplyMarkup`, {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: { inline_keyboard: [[{ text: `✅ Verified by: ${cb.from.first_name}`, callback_data: "ignore" }]] } })
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: { inline_keyboard: [[{ text: `✅ Verified by: ${adminName}`, callback_data: `fb_alert_v_${msgId}` }]] } })
           });
+          
+          const alertData = { adminName: adminName, date: new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' }), action: 'Verified' };
+          await KV.put(`fb_alert_${msgId}`, JSON.stringify(alertData), { expirationTtl: 2592000 });
           await answerCallback(TG_API, cb.id, "✅ User Verified!");
         }
 
@@ -368,11 +372,27 @@ export default {
             body: JSON.stringify({ chat_id: targetId, text: T.fb_not_verified, parse_mode: "HTML", reply_markup: rejectKb })
           });
 
+          const adminName = cb.from.first_name;
           await fetch(`${TG_API}/editMessageReplyMarkup`, {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: { inline_keyboard: [[{ text: `❌ Rejected by: ${cb.from.first_name}`, callback_data: "ignore" }]] } })
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: { inline_keyboard: [[{ text: `❌ Rejected by: ${adminName}`, callback_data: `fb_alert_r_${msgId}` }]] } })
           });
+          
+          const alertData = { adminName: adminName, date: new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' }), action: 'Rejected' };
+          await KV.put(`fb_alert_${msgId}`, JSON.stringify(alertData), { expirationTtl: 2592000 });
           await answerCallback(TG_API, cb.id, "❌ User Rejected!");
+        }
+
+        else if (data.startsWith("fb_alert_")) {
+          const alertId = data.replace("fb_alert_v_", "").replace("fb_alert_r_", "");
+          const alertStr = await KV.get(`fb_alert_${alertId}`);
+          if (alertStr) {
+             const ad = JSON.parse(alertStr);
+             const alertText = `FB Verification ${ad.action}\n\n👤 Action by: ${ad.adminName}\n🕒 Date: ${ad.date}`;
+             await answerCallback(TG_API, cb.id, alertText, true);
+          } else {
+             await answerCallback(TG_API, cb.id, "✅ Action already processed.", true);
+          }
         }
 
         else if (data.startsWith("fb_cancel_v_")) {
@@ -577,20 +597,9 @@ export default {
             if (fbState.step === "waiting_ss" && msg.photo) {
               await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: userId, message_id: msgId }) }).catch(() => {});
               const photoId = msg.photo[msg.photo.length - 1].file_id;
-              fbState.photo = photoId;
-              fbState.step = "waiting_name";
-              await fetch(`${TG_API}/editMessageText`, {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ chat_id: userId, message_id: fbState.bot_msg_id, text: T.fb_ask_name, parse_mode: "HTML" })
-              });
-              await KV.put(`fb_state_${userId}`, JSON.stringify(fbState));
-              return new Response("OK");
-            }
-            if (fbState.step === "waiting_name" && text && !text.startsWith("/")) {
-              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: userId, message_id: msgId }) }).catch(() => {});
-              
-              // Final Step: Send to Admin Channel
-              const adminText = `🆕 <b>FB Follow Verification!</b>\n\n👤 <b>User:</b> <a href="tg://user?id=${userId}">${firstName}</a> (<code>${userId}</code>)\n✍️ <b>FB Name:</b> <code>${text}</code>`;
+              const providedName = msg.caption || firstName;
+
+              const adminText = `🆕 <b>FB Follow Verification!</b>\n\n👤 <b>User:</b> <a href="tg://user?id=${userId}">${firstName}</a> (<code>${userId}</code>)\n✍️ <b>FB Name:</b> <code>${providedName}</code>`;
               const adminKb = {
                 inline_keyboard: [
                   [{ text: "✅ Verified", callback_data: `fb_verify_v_${userId}` }, { text: "❌ Not Verified", callback_data: `fb_reject_r_${userId}` }]
@@ -599,7 +608,7 @@ export default {
               
               await fetch(`${TG_API}/sendPhoto`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ chat_id: VERIFY_CHANNEL, photo: fbState.photo, caption: adminText, parse_mode: "HTML", reply_markup: adminKb })
+                body: JSON.stringify({ chat_id: VERIFY_CHANNEL, photo: photoId, caption: adminText, parse_mode: "HTML", reply_markup: adminKb })
               });
 
               await fetch(`${TG_API}/editMessageText`, {
