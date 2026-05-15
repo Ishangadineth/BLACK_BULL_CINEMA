@@ -11,6 +11,12 @@
 
 const LOCALES = {
   si: {
+    welcome: "ඔයා Request කරන <b>{query}</b> {type} එකේ සම්පූර්ණ නම (Full Name) එක පහළින් Type කරලා එවන්න. හරියටම නම දන්නේ නැත්නම් Google එකේ Search කරලා හරි නම එවන්න. 🔍",
+    ask_year: "<b>{name}</b> Release කරපු අවුරුද්ද (Year) ඔයා දන්නවද? දන්නවා නම් අවුරුද්ද Type කරලා එවන්න. දන්නේ නැත්නම් පහළ තියෙන 'NO' Button එක Click කරන්න. 📅",
+    req_sent: "✅ <b>ඔයාගේ Request එක Admin ට යැව්වා!</b>\n\nඉක්මනින්ම අපි <code>{query}</code> ගෲප් එකට දානවා. ඒක දැම්මට පස්සේ ඔයාට මෙතනින් Message එකක් එයි. 😉",
+    done_msg: "✅ <b>ඔයා ඉල්ලපු එක Upload කරා!</b>\n\n🎬 <code>{query}</code> දැන් Group එකට දාලා තියෙන්නේ. ගිහින් Download කරගන්න. 😉",
+    home_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ආයුබෝවන්! ඔයාව සාදරයෙන් පිළිගන්නවා.\nඔයාට අවශ්‍ය Movies/Series ලබාගන්න අපේ Channel එකේ තියෙන ලින්ක් එකකින් එන්න.\n\n🛡️ <b>Safe & Fast Delivery</b>",
+    grp_welcome: "👋 <b>Welcome {name}!</b>\n\n🌟 <b>BLACK BULL CINEMA</b> Group එකට ඔයාව සාදරයෙන් පිළිගන්නවා.\n\n⚠️ Group එකේ ලින්ක්ස් දාන්න එපා.",
     btn_no: "📅 NO",
     fb_welcome: "🎁 <b>ඔයාට points 75 ලබාගන්න chance එකක්!</b>\n\nඔයා අපේ facebook page එක follow කරලා පහල තියෙන <b>'I Follow on FB'</b> කියන button එක click කරන්න.\n\nඑතකොට අපේ page එකේ screen shot එක ඉල්ලයි. ඔයා ඒක bot ට send කරන්න. ඊට පස්සේ ඔයාගේ profile name එක bot ඉල්ලනවා. ඒකත් send කරන්න. එච්චරයි ඔයාට කරන්ට තියෙන්නෙ!\n\nඅපේ admin check කරලා 2-3 h අතර කාලෙකින් ඔයාට point ලැබුනා කියලා msg එකක් එයි. 🔥",
     fb_btn: "✅ I have followed",
