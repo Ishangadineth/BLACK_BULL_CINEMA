@@ -11,13 +11,16 @@
 
 const LOCALES = {
   si: {
-    welcome: "ඔයා මේ ඉල්ලන <b>{query}</b> {type} එකේ සම්පූර්ණ නම Google කරලා දාන්න. 🔍",
-    ask_year: "ඔයා මේ ඉල්ලන <b>{name}</b> හදපු අවුරුද්ද දන්නවද? දන්නව නම් දාන්න, දන්නෙ නැත්තම් 'NO' කියන බටන් එක ඔබන්න. 📅",
-    req_sent: "✅ <b>ඔයාගේ Request එක ඇඩ්මින්ට යැව්වා!</b>\n\nඅපි <code>{query}</code> ඉක්මනින්ම ගෲප් එකට දාන්නම්. දැම්මට පස්සේ ඔයාට මෙතනින් මැසේජ් එකක් එයි. 😉",
-    done_msg: "✅ <b>ඔන්න ඔයා ඉල්ලපු එක දැම්මා!</b>\n\n🎬 <code>{query}</code> එක Group එකට දාලා තියෙන්නේ. දැන් ගිහින් Download කරගන්න. 😉",
-    home_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ආයුබෝවන්! සාදරයෙන් පිළිගන්න.\nඔයාට අවශ්‍ය මූවීස් සහ සීරීස් පහසුවෙන් ලබා ගැනීමට අපගේ චැනල් එකේ ඇති ලින්ක් එකක් ක්ලික් කර මෙතැනට පැමිණෙන්න.\n\n🛡️ <b>Safe & Fast Delivery</b>",
-    grp_welcome: "👋 <b>සාදරයෙන් පිළිගන්න {name}!</b>\n\n🌟 <b>BLACK BULL CINEMA</b> Group එකට ඔබව සාදරයෙන් පිළිගන්නවා.\n\n⚠️ කරුණාකර ගෲප් එකේ නීති රීති පිළිපදින්න. (ලින්ක් හෝ ඉමෝජි දැමීම තහනම්)",
-    btn_no: "📅 NO"
+    btn_no: "📅 NO",
+    fb_welcome: "🎁 <b>ඔයාට points 75 ලබාගන්න chance එකක්!</b>\n\nඔයා අපේ facebook page එක follow කරලා පහල තියෙන <b>'I Follow on FB'</b> කියන button එක click කරන්න.\n\nඑතකොට අපේ page එකේ screen shot එක ඉල්ලයි. ඔයා ඒක bot ට send කරන්න. ඊට පස්සේ ඔයාගේ profile name එක bot ඉල්ලනවා. ඒකත් send කරන්න. එච්චරයි ඔයාට කරන්ට තියෙන්නෙ!\n\nඅපේ admin check කරලා 2-3 h අතර කාලෙකින් ඔයාට point ලැබුනා කියලා msg එකක් එයි. 🔥",
+    fb_btn: "✅ I have followed",
+    fb_ask_ss: "📸 <b>නියමයි!</b>\nදැන් ඔයා අපේ Facebook Page එක Follow කරපු බව පෙනෙන Screenshot එකක් මෙතැනට එවන්න.",
+    fb_ask_name: "✍️ <b>දැන් ඔයාගේ Facebook Profile Name එක මෙතැනට එවන්න.</b>",
+    fb_final: "✅ <b>ඔයාගේ විස්තර ලැබුණා!</b>\n\nඅපේ admin check කරලා 2-3 h අතර කාලෙකින් ඔයාට point ලැබුනා කියලා msg එකක් එයි. ස්තූතියි! ❤️",
+    fb_earned_already: "ඔයා දැනටම point 75 අරගෙන ඉන්නේ පැටියෝ.. 😉",
+    fb_not_verified: "❌ <b>ඔයා අපේ page එක follow කරලා නෑනේ!</b>\n\nfollow කරලා නම් තියෙන්නේ ඔයාගේ profile එකේ තියෙන name එක හරියට දාන්න. ආයේ check කරලා පහළ තියෙන <b>TRY AGAIN</b> button එක click කරන්න. 👇",
+    fb_try_again: "🔄 TRY AGAIN",
+    fb_success: "🎉 <b>Congratulations!</b>\nඔයාට point 75ක් add උනා! දැන් points system එක හරහා gateway නොයා කෙලින්ම films/series download කරගන්න.\n\nතව point ඕනි නම් පහල තියෙන share button එක click කරන්න. 👇"
   },
   en: {
     welcome: "Please provide the full name of the <b>{query}</b> {type} you're requesting. Search on Google if needed. 🔍",
@@ -26,7 +29,16 @@ const LOCALES = {
     done_msg: "✅ <b>The item you requested has been uploaded!</b>\n\n🎬 <code>{query}</code> is now available in the group. Go and download it now. 😉",
     home_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 Welcome! Glad to have you here.\nTo get your favorite movies and series, click a link from our channel to come here.\n\n🛡️ <b>Safe & Fast Delivery</b>",
     grp_welcome: "👋 <b>Welcome {name}!</b>\n\n🌟 Welcome to the <b>BLACK BULL CINEMA</b> Group.\n\n⚠️ Please follow the group rules. (No links or emojis)",
-    btn_no: "📅 NO"
+    btn_no: "📅 NO",
+    fb_welcome: "🎁 <b>Get 75 Free Points!</b>\n\nFollow our Facebook page and click the <b>'I Follow on FB'</b> button below.\n\nYou will be asked to send a screenshot and your profile name. Once approved, you get 75 points! 🔥",
+    fb_btn: "✅ I have followed",
+    fb_ask_ss: "📸 <b>Great!</b>\nPlease send a screenshot showing that you followed our Facebook page.",
+    fb_ask_name: "✍️ <b>Now, please send your Facebook Profile Name.</b>",
+    fb_final: "✅ <b>Details Received!</b>\n\nOur admin will verify it within 2-3 hours and you'll receive your points. Thank you! ❤️",
+    fb_earned_already: "You have already earned these 75 points! 😉",
+    fb_not_verified: "❌ <b>Verification Failed!</b>\n\nYou haven't followed our page or the profile name is incorrect. Please check again and click <b>TRY AGAIN</b>. 👇",
+    fb_try_again: "🔄 TRY AGAIN",
+    fb_success: "🎉 <b>Congratulations!</b>\n75 points have been added to your account! You can now download directly without the gateway.\n\nNeed more points? Click share below. 👇"
   },
   hi: {
     welcome: "कृपया उस <b>{query}</b> {type} का पूरा नाम प्रदान करें जिसे आप अनुरोध कर रहे हैं। 🔍",
@@ -35,7 +47,16 @@ const LOCALES = {
     done_msg: "✅ <b>वह फिल्म जिसे आपने अनुरोध किया था, अपलोड कर दी गई है!</b>\n\n🎬 <code>{query}</code> अब ग्रुप में उपलब्ध है। 😉",
     home_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 स्वागत है!",
     grp_welcome: "👋 <b>स्वागत है {name}!</b>\n\n🌟 <b>BLACK BULL CINEMA</b> ग्रुप में आपका स्वागत है।\n\n⚠️ कृपया समूह के नियमों का पालन करें। (कोई लिंक या इमोजी नहीं)",
-    btn_no: "📅 NO"
+    btn_no: "📅 NO",
+    fb_welcome: "🎁 <b>75 फ्री पॉइंट्स पाएं!</b>\n\nहमारे फेसबुक पेज को फॉलो करें और नीचे दिए गए <b>'I Follow on FB'</b> बटन पर क्लिक करें।",
+    fb_btn: "✅ I have followed",
+    fb_ask_ss: "📸 <b>बहुत बढ़िया!</b>\nकृपया वह स्क्रीनशॉट भेजें जिसमें दिखाया गया है कि आपने हमारे फेसबुक पेज को फॉलो किया है।",
+    fb_ask_name: "✍️ <b>अब, कृपया अपना फेसबुक प्रोफाइल नाम भेजें।</b>",
+    fb_final: "✅ <b>विवरण प्राप्त हुआ!</b>\n\nहमारे एडमिन 2-3 घंटों के भीतर इसकी पुष्टि करेंगे। ❤️",
+    fb_earned_already: "आपने पहले ही ये 75 अंक अर्जित कर लिए हैं! 😉",
+    fb_not_verified: "❌ <b>सत्यापन विफल!</b>\n\nआपने हमारे पेज को फॉलो नहीं किया है या नाम गलत है। कृपया पुनः प्रयास करें। 👇",
+    fb_try_again: "🔄 TRY AGAIN",
+    fb_success: "🎉 <b>बधाई हो!</b>\n75 अंक आपके खाते में जोड़ दिए गए हैं! 👇"
   },
   es: {
     welcome: "Proporcione el nombre completo de <b>{query}</b> {type} que está solicitando. 🔍",
@@ -44,7 +65,16 @@ const LOCALES = {
     done_msg: "✅ <b>¡El elemento que solicitaste ha sido subido!</b>\n\n🎬 <code>{query}</code> ya está disponible. 😉",
     home_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 ¡Bienvenido!",
     grp_welcome: "👋 <b>¡Bienvenido {name}!</b>\n\n🌟 Bienvenido al grupo <b>BLACK BULL CINEMA</b>.\n\n⚠️ Por favor sigue las reglas. (Sin enlaces ni emojis)",
-    btn_no: "📅 NO"
+    btn_no: "📅 NO",
+    fb_welcome: "🎁 <b>¡Gana 75 puntos gratis!</b>\n\nSigue nuestra página de Facebook y haz clic en el botón <b>'I Follow on FB'</b>.",
+    fb_btn: "✅ I have followed",
+    fb_ask_ss: "📸 <b>¡Genial!</b>\nEnvía una captura de pantalla que demuestre que seguiste nuestra página.",
+    fb_ask_name: "✍️ <b>Ahora, envía tu nombre de perfil de Facebook.</b>",
+    fb_final: "✅ <b>¡Detalles recibidos!</b>\n\nNuestro administrador verificará esto pronto. ❤️",
+    fb_earned_already: "¡Ya has ganado estos 75 puntos! 😉",
+    fb_not_verified: "❌ <b>¡Verificación fallida!</b>\n\nNo has seguido nuestra página o el nombre es incorrecto. Inténtalo de nuevo. 👇",
+    fb_try_again: "🔄 TRY AGAIN",
+    fb_success: "🎉 <b>¡Felicidades!</b>\n¡Se han añadido 75 puntos a tu cuenta! 👇"
   },
   ta: {
     welcome: "நீங்கள் கோரும் <b>{query}</b> {type} இன் முழுப் பெயரை வழங்கவும். 🔍",
@@ -53,7 +83,16 @@ const LOCALES = {
     done_msg: "✅ <b>நீங்கள் கோரியது பதிவேற்றப்பட்டது!</b>\n\n🎬 <code>{query}</code> இப்போது குழுவில் கிடைக்கிறது. 😉",
     home_msg: "🌟 <b>BLACK BULL CINEMA</b> 🌟\n\n👋 வரவேற்கிறோம்!",
     grp_welcome: "👋 <b>வரவேற்கிறோம் {name}!</b>\n\n🌟 <b>BLACK BULL CINEMA</b> குழுவிற்கு உங்களை வரவேற்கிறோம்.\n\n⚠️ குழு விதிகளைப் பின்பற்றவும். (இணைப்புகள் அல்லது ஈமோஜிகள் இல்லை)",
-    btn_no: "📅 NO"
+    btn_no: "📅 NO",
+    fb_welcome: "🎁 <b>75 இலவச புள்ளிகளைப் பெறுங்கள்!</b>\n\nஎங்கள் பேஸ்புக் பக்கத்தைப் பின்தொடர்ந்து <b>'I Follow on FB'</b> பொத்தானைக் கிளிக் செய்யவும்.",
+    fb_btn: "✅ I have followed",
+    fb_ask_ss: "📸 <b>சிறந்தது!</b>\nஎங்கள் பேஸ்புக் பக்கத்தைப் பின்தொடர்ந்ததைக் காட்டும் ஸ்கிரீன்ஷாட்டை அனுப்பவும்.",
+    fb_ask_name: "✍️ <b>இப்போது, உங்கள் பேஸ்புக் சுயவிவரப் பெயரை அனுப்பவும்.</b>",
+    fb_final: "✅ <b>விவரங்கள் பெறப்பட்டன!</b>\n\nஎங்கள் நிர்வாகி விரைவில் சரிபார்ப்பார். ❤️",
+    fb_earned_already: "நீங்கள் ஏற்கனவே இந்த 75 புள்ளிகளைப் பெற்றுள்ளீர்கள்! 😉",
+    fb_not_verified: "❌ <b>சரிபார்ப்பு தோல்வி!</b>\n\nநீங்கள் எங்கள் பக்கத்தைப் பின்தொடரவில்லை அல்லது பெயர் தவறானது. மீண்டும் முயற்சிக்கவும். 👇",
+    fb_try_again: "🔄 TRY AGAIN",
+    fb_success: "🎉 <b>வாழ்த்துகள்!</b>\nஉங்கள் கணக்கில் 75 புள்ளிகள் சேர்க்கப்பட்டுள்ளன! 👇"
   }
 };
 
@@ -65,6 +104,8 @@ export default {
     const ADMIN_GROUP = "-1003788726228";
     const KV = env.REQ_KV;
     const LANG_KV = env.BLACK_BULL_CINEMA_LANG;
+    const POINT_KV = env.BLACKBULL_REF_POINT;
+    const VERIFY_CHANNEL = "-1003926419218";
 
     if (!BOT_TOKEN) return new Response("Missing REQ_BOT_TOKEN", { status: 500 });
 
@@ -160,7 +201,6 @@ export default {
             body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: newKb })
           });
           
-          // Save state that we are waiting for an image for this request
           await KV.put("waiting_for_req_img", JSON.stringify({
             msgId: msgId,
             targetUserId: targetUserId,
@@ -176,15 +216,13 @@ export default {
           const targetUserId = parts[0];
           const query = parts.slice(1).join("_");
           
-          // Revert to the original NOT COMPLETE button
           const newKb = { inline_keyboard: [[{ text: "🚫 NOT COMPLETE", callback_data: `req_complete_${targetUserId}_${query}` }]] };
           await fetch(`${TG_API}/editMessageReplyMarkup`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: newKb })
           });
-          await KV.delete(`req_img_${msgId}`); // Clean up any saved image
+          await KV.delete(`req_img_${msgId}`); 
           
-          // Check if this was the one waiting for an image and cancel it
           const waitingDataStr = await KV.get("waiting_for_req_img");
           if (waitingDataStr) {
             const wData = JSON.parse(waitingDataStr);
@@ -196,12 +234,11 @@ export default {
         }
         
         else if (data.startsWith("req_haspost_no_") || data.startsWith("req_confirm_")) {
-          // Both "No post" and "Confirm & Send" finalize the request to the user
           const isConfirm = data.startsWith("req_confirm_");
           const prefix = isConfirm ? "req_confirm_" : "req_haspost_no_";
           const parts = data.replace(prefix, "").split("_");
           const targetUserId = parts[0];
-          const query = parts.slice(1).join(" ").replace(/_/g, " "); // restore spaces
+          const query = parts.slice(1).join(" ").replace(/_/g, " ");
           
           const langCode = await getUserLang(LANG_KV, targetUserId);
           const T = LOCALES[langCode] || LOCALES.si;
@@ -217,14 +254,12 @@ export default {
               });
               await KV.delete(`req_img_${msgId}`);
             } else {
-              // Fallback if image missing
               await fetch(`${TG_API}/sendMessage`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ chat_id: targetUserId, text: userMsg, parse_mode: "HTML" })
               });
             }
           } else {
-            // No image
             await fetch(`${TG_API}/sendMessage`, {
               method: "POST", headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ chat_id: targetUserId, text: userMsg, parse_mode: "HTML" })
@@ -238,13 +273,12 @@ export default {
             body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: newKb })
           });
 
-          // Save details for the alert modal
           const alertData = {
             adminName: adminName,
             date: new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' }),
             query: query
           };
-          await KV.put(`req_alert_${msgId}`, JSON.stringify(alertData), { expirationTtl: 2592000 }); // Store for 30 days
+          await KV.put(`req_alert_${msgId}`, JSON.stringify(alertData), { expirationTtl: 2592000 });
 
           await answerCallback(TG_API, cb.id, "✅ User Notified & Request Marked as Complete!");
         }
@@ -261,6 +295,111 @@ export default {
           }
         }
 
+        // ── Handle FB Verification Callbacks ──
+        else if (data === "fb_start_verify") {
+          const langCode = await getUserLang(LANG_KV, userId);
+          const T = LOCALES[langCode] || LOCALES.si;
+          
+          await KV.put(`fb_state_${userId}`, JSON.stringify({ step: "waiting_ss", bot_msg_id: msgId }));
+          await fetch(`${TG_API}/editMessageText`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: T.fb_ask_ss, parse_mode: "HTML" })
+          });
+          await answerCallback(TG_API, cb.id);
+        }
+
+        else if (data.startsWith("fb_verify_") || data.startsWith("fb_reject_")) {
+          const isApprove = data.startsWith("fb_verify_");
+          const targetId = data.split("_")[2];
+          
+          const kb = {
+            inline_keyboard: [
+              [{ text: `Are you sure to ${isApprove ? "VERIFY" : "REJECT"}?`, callback_data: "ignore" }],
+              [
+                { text: "✅ Yes", callback_data: `${isApprove ? "fb_confirm_v" : "fb_confirm_r"}_${targetId}` },
+                { text: "❌ No", callback_data: `fb_cancel_v_${targetId}` }
+              ]
+            ]
+          };
+          await fetch(`${TG_API}/editMessageReplyMarkup`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: kb })
+          });
+          await answerCallback(TG_API, cb.id);
+        }
+
+        else if (data.startsWith("fb_confirm_v_")) {
+          const targetId = data.split("_")[3];
+          const langCode = await getUserLang(LANG_KV, targetId);
+          const T = LOCALES[langCode] || LOCALES.si;
+
+          if (POINT_KV) {
+             const currentPts = parseInt(await POINT_KV.get("pts_" + targetId) || "0");
+             await POINT_KV.put("pts_" + targetId, (currentPts + 75).toString());
+             await POINT_KV.put(`fb_earned_${targetId}`, "true");
+          }
+
+          const successKb = {
+            inline_keyboard: [
+              [{ text: "🔗 Share Link", url: `https://t.me/share/url?url=https://t.me/idsmovieplanetbot&text=Join this movie bot!` }]
+            ]
+          };
+
+          await fetch(`${TG_API}/sendMessage`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: targetId, text: T.fb_success, parse_mode: "HTML", reply_markup: successKb })
+          });
+
+          await fetch(`${TG_API}/editMessageReplyMarkup`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: { inline_keyboard: [[{ text: `✅ Verified by: ${cb.from.first_name}`, callback_data: "ignore" }]] } })
+          });
+          await answerCallback(TG_API, cb.id, "✅ User Verified!");
+        }
+
+        else if (data.startsWith("fb_confirm_r_")) {
+          const targetId = data.split("_")[3];
+          const langCode = await getUserLang(LANG_KV, targetId);
+          const T = LOCALES[langCode] || LOCALES.si;
+
+          const rejectKb = { inline_keyboard: [[{ text: T.fb_try_again, callback_data: "fb_retry" }]] };
+          await fetch(`${TG_API}/sendMessage`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: targetId, text: T.fb_not_verified, parse_mode: "HTML", reply_markup: rejectKb })
+          });
+
+          await fetch(`${TG_API}/editMessageReplyMarkup`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: { inline_keyboard: [[{ text: `❌ Rejected by: ${cb.from.first_name}`, callback_data: "ignore" }]] } })
+          });
+          await answerCallback(TG_API, cb.id, "❌ User Rejected!");
+        }
+
+        else if (data.startsWith("fb_cancel_v_")) {
+          const targetId = data.split("_")[3];
+          const newKb = {
+            inline_keyboard: [
+              [{ text: "✅ Verified", callback_data: `fb_verify_v_${targetId}` }, { text: "❌ Not Verified", callback_data: `fb_reject_r_${targetId}` }]
+            ]
+          };
+          await fetch(`${TG_API}/editMessageReplyMarkup`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, message_id: msgId, reply_markup: newKb })
+          });
+          await answerCallback(TG_API, cb.id);
+        }
+
+        else if (data === "fb_retry") {
+           const langCode = await getUserLang(LANG_KV, userId);
+           const T = LOCALES[langCode] || LOCALES.si;
+           const welcomeKb = { inline_keyboard: [[{ text: "🔗 Facebook Page", url: "https://www.facebook.com/share/1F4ZK23Dmp/" }], [{ text: T.fb_btn, callback_data: "fb_start_verify" }]] };
+           await fetch(`${TG_API}/editMessageText`, {
+             method: "POST", headers: { "Content-Type": "application/json" },
+             body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: T.fb_welcome, parse_mode: "HTML", reply_markup: welcomeKb })
+           });
+           await answerCallback(TG_API, cb.id);
+        }
+
         return new Response("OK");
       }
 
@@ -273,17 +412,15 @@ export default {
         const firstName = msg.from?.first_name || "User";
         const text = msg.text || "";
 
-        // ── 0. Save User ID ──
         if (KV && userId) {
           await KV.put(`user_${userId}`, JSON.stringify({ name: firstName, date: new Date().toISOString() }));
         }
 
-        // ── 1. Admin Group Image Attachment ──
         if (chatId.toString() === ADMIN_GROUP && msg.photo) {
           const waitingDataStr = await KV.get("waiting_for_req_img");
           if (waitingDataStr) {
             const wData = JSON.parse(waitingDataStr);
-            await KV.delete("waiting_for_req_img"); // Only trigger once
+            await KV.delete("waiting_for_req_img");
             
             const photoId = msg.photo[msg.photo.length - 1].file_id;
             await KV.put(`req_img_${wData.msgId}`, photoId);
@@ -302,7 +439,6 @@ export default {
               body: JSON.stringify({ chat_id: chatId, message_id: wData.msgId, reply_markup: newKb })
             });
             
-            // Delete admin's photo message to keep group clean
             await fetch(`${TG_API}/deleteMessage`, {
               method: "POST", headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ chat_id: chatId, message_id: msgId })
@@ -312,9 +448,7 @@ export default {
           }
         }
 
-        // ── 2. Group Moderation ──
         if (msg.chat.type === "group" || msg.chat.type === "supergroup") {
-          // ── 1.1 Auto-delete any command in group after 10s ──
           if (text.startsWith("/") && ctx) {
             ctx.waitUntil((async () => {
               await new Promise(r => setTimeout(r, 10000));
@@ -322,7 +456,6 @@ export default {
             })());
           }
 
-          // Welcome Msg
           if (msg.new_chat_members) {
             const langCode = await getUserLang(LANG_KV, userId);
             const T = LOCALES[langCode] || LOCALES.si;
@@ -346,7 +479,6 @@ export default {
             return new Response("OK");
           }
 
-          // Admin Bypass
           let isAdmin = false;
           if (env.ADMIN_ID && userId.toString() === env.ADMIN_ID.toString()) isAdmin = true;
           else {
@@ -388,6 +520,24 @@ export default {
 
           if (text.startsWith("/start ")) {
             const params = text.split(" ")[1];
+            
+            if (params === "fb_pts") {
+               const hasEarned = POINT_KV ? await POINT_KV.get(`fb_earned_${userId}`) : null;
+               if (hasEarned) {
+                 await fetch(`${TG_API}/sendMessage`, {
+                   method: "POST", headers: { "Content-Type": "application/json" },
+                   body: JSON.stringify({ chat_id: userId, text: T.fb_earned_already, parse_mode: "HTML" })
+                 });
+                 return new Response("OK");
+               }
+               const welcomeKb = { inline_keyboard: [[{ text: "🔗 Facebook Page", url: "https://www.facebook.com/share/1F4ZK23Dmp/" }], [{ text: T.fb_btn, callback_data: "fb_start_verify" }]] };
+               await fetch(`${TG_API}/sendMessage`, {
+                 method: "POST", headers: { "Content-Type": "application/json" },
+                 body: JSON.stringify({ chat_id: userId, text: T.fb_welcome, parse_mode: "HTML", reply_markup: welcomeKb })
+               });
+               return new Response("OK");
+            }
+
             let type = "🎬 Movie";
             let query = decodeURIComponent(params);
             if (params.startsWith("m_")) { type = "🎬 Movie"; query = decodeURIComponent(params.substring(2)); }
@@ -419,6 +569,47 @@ export default {
              state.year = text;
              await finalizeRequest(TG_API, ADMIN_GROUP, userId, firstName, state, KV, LANG_KV, state.bot_msg_id);
              return new Response("OK");
+          }
+
+          // ── FB Step Handling ──
+          let fbState = await getKV(KV, `fb_state_${userId}`);
+          if (fbState) {
+            if (fbState.step === "waiting_ss" && msg.photo) {
+              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: userId, message_id: msgId }) }).catch(() => {});
+              const photoId = msg.photo[msg.photo.length - 1].file_id;
+              fbState.photo = photoId;
+              fbState.step = "waiting_name";
+              await fetch(`${TG_API}/editMessageText`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id: userId, message_id: fbState.bot_msg_id, text: T.fb_ask_name, parse_mode: "HTML" })
+              });
+              await KV.put(`fb_state_${userId}`, JSON.stringify(fbState));
+              return new Response("OK");
+            }
+            if (fbState.step === "waiting_name" && text && !text.startsWith("/")) {
+              await fetch(`${TG_API}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: userId, message_id: msgId }) }).catch(() => {});
+              
+              // Final Step: Send to Admin Channel
+              const adminText = `🆕 <b>FB Follow Verification!</b>\n\n👤 <b>User:</b> <a href="tg://user?id=${userId}">${firstName}</a> (<code>${userId}</code>)\n✍️ <b>FB Name:</b> <code>${text}</code>`;
+              const adminKb = {
+                inline_keyboard: [
+                  [{ text: "✅ Verified", callback_data: `fb_verify_v_${userId}` }, { text: "❌ Not Verified", callback_data: `fb_reject_r_${userId}` }]
+                ]
+              };
+              
+              await fetch(`${TG_API}/sendPhoto`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id: VERIFY_CHANNEL, photo: fbState.photo, caption: adminText, parse_mode: "HTML", reply_markup: adminKb })
+              });
+
+              await fetch(`${TG_API}/editMessageText`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id: userId, message_id: fbState.bot_msg_id, text: T.fb_final, parse_mode: "HTML" })
+              });
+
+              await KV.delete(`fb_state_${userId}`);
+              return new Response("OK");
+            }
           }
 
           if (text.startsWith("/")) {

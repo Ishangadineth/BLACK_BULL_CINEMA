@@ -180,7 +180,7 @@ async function handleMessage(msg, env, ctx) {
     const num = parseInt(text);
     const kv = env.BLACK_BULL_CINEMA;
     let success = false;
-    
+
     if (!isNaN(num) && num > 0) {
       let viewStr = await kv.get(`watch_view_${chatId}`);
       if (viewStr) {
@@ -195,17 +195,17 @@ async function handleMessage(msg, env, ctx) {
         }
       }
     }
-    
-    await fetch(`https://api.telegram.org/bot${bots[0]}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msg.message_id }) }).catch(()=>{});
-    await fetch(`https://api.telegram.org/bot${bots[0]}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msg.reply_to_message.message_id }) }).catch(()=>{});
-    
+
+    await fetch(`https://api.telegram.org/bot${bots[0]}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msg.message_id }) }).catch(() => { });
+    await fetch(`https://api.telegram.org/bot${bots[0]}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: msg.reply_to_message.message_id }) }).catch(() => { });
+
     if (success) {
       const sentMsg = await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "✅ <b>සාර්ථකව මකා දැමුවා!</b>", parse_mode: "HTML" }) });
       const sentData = await sentMsg.json();
       if (sentData.ok && ctx) {
         ctx.waitUntil((async () => {
           await new Promise(r => setTimeout(r, 3000));
-          await fetch(`https://api.telegram.org/bot${bots[0]}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: sentData.result.message_id }) }).catch(()=>{});
+          await fetch(`https://api.telegram.org/bot${bots[0]}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: sentData.result.message_id }) }).catch(() => { });
         })());
       }
       await showWatchlist(bots[0], chatId, "all", env, chatId, null);
@@ -215,7 +215,7 @@ async function handleMessage(msg, env, ctx) {
       if (sentData.ok && ctx) {
         ctx.waitUntil((async () => {
           await new Promise(r => setTimeout(r, 3000));
-          await fetch(`https://api.telegram.org/bot${bots[0]}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: sentData.result.message_id }) }).catch(()=>{});
+          await fetch(`https://api.telegram.org/bot${bots[0]}/deleteMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, message_id: sentData.result.message_id }) }).catch(() => { });
         })());
       }
     }
@@ -587,7 +587,7 @@ async function handleCallback(cb, env, ctx) {
       const parts = data.split("|");
       const langCode = parts[0].split("_")[1];
       const targetUserId = parts.length > 1 ? parts[1] : null;
-      
+
       if (targetUserId && targetUserId !== String(cb.from.id)) {
         await answerCallbackSafe(bots, cb.id, "NOT PERMISSION", true);
         return;
@@ -624,7 +624,7 @@ async function handleCallback(cb, env, ctx) {
         await answerCallbackSafe(bots, cb.id, "NOT PERMISSION", true);
         return;
       }
-      
+
       const kb = {
         inline_keyboard: [
           [{ text: "🇱🇰 Sinhala (Default)", callback_data: `setlang_si|${cb.from.id}` }],
@@ -697,17 +697,17 @@ async function handleCallback(cb, env, ctx) {
             keyboard.push([{ text: "🎬 Watch Trailer", url: movie.trailer }]);
           }
           keyboard.push([{ text: "❤️ Add to Watchlist", callback_data: `watch_add_${movieId.substring(0, 50)}` }]);
-          
+
           const refBotToken = bots.length > 1 ? bots[1] : bots[0];
           const refBotUser = await getBotUsername(refBotToken);
           const validBotUser = refBotUser !== "UnknownBot" ? refBotUser : "Sofia_BLACKBULL_bot";
           keyboard.push([{ text: "🎁 Earn Point (direct download)", url: `https://t.me/${validBotUser}?start=ref` }]);
-          
+
           keyboard.push([{ text: "🔙 Back to List", callback_data: `search_${safeQuery}` }]);
 
           let ratingLine = "";
           if (movie.rating && movie.rating.toUpperCase() !== "N/A") {
-             ratingLine = `\n⭐️ <b>Rating:</b> ${movie.rating}/10`;
+            ratingLine = `\n⭐️ <b>Rating:</b> ${movie.rating}/10`;
           }
           const qualSelText = T.qual_sel || "හරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇";
           const detailText = `🎬 <b>${movie.title} (${movie.year})</b>${ratingLine}\n🎭 <b>Type:</b> ${movie.is_series ? 'Series' : 'Movie'}\n\n${qualSelText}`;
@@ -727,7 +727,7 @@ async function handleCallback(cb, env, ctx) {
               body: JSON.stringify(payload)
             });
             let data = await res.json();
-            
+
             if (!data.ok) {
               payload.media.media = randomImg;
               res = await fetch(`https://api.telegram.org/bot${token}/editMessageMedia`, {
@@ -736,7 +736,7 @@ async function handleCallback(cb, env, ctx) {
               });
               data = await res.json();
             }
-            
+
             if (data.ok) {
               success = true;
               break;
@@ -748,27 +748,27 @@ async function handleCallback(cb, env, ctx) {
               await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ chat_id: chatId, message_id: msgId })
-              }).catch(() => {});
-              
+              }).catch(() => { });
+
               const replyToId = cb.message.reply_to_message ? cb.message.reply_to_message.message_id : null;
               let sendPayload = { chat_id: chatId, photo: thumb, caption: detailText, parse_mode: "HTML", reply_markup: { inline_keyboard: keyboard } };
               if (replyToId) sendPayload.reply_to_message_id = replyToId;
-              
+
               let sendRes = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(sendPayload)
               });
               let sendData = await sendRes.json();
-              
+
               if (!sendData.ok) {
-                 sendPayload.photo = randomImg;
-                 sendRes = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
-                   method: "POST", headers: { "Content-Type": "application/json" },
-                   body: JSON.stringify(sendPayload)
-                 });
-                 sendData = await sendRes.json();
+                sendPayload.photo = randomImg;
+                sendRes = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(sendPayload)
+                });
+                sendData = await sendRes.json();
               }
-              
+
               if (sendData.ok) break;
             }
           }
@@ -931,7 +931,9 @@ async function handleCallback(cb, env, ctx) {
         }
         await handleStartCommand(chatId, payload, env, bots);
       } else {
-        await answerCallbackSafe(bots, cb.id, "❌ You must join both channels first!", true);
+        const langCode = await getUserLang(cb.from.id, env);
+        const T = LANGS[langCode] || LANGS.si;
+        await answerCallbackSafe(bots, cb.id, T.force_sub_alert, true);
       }
       return;
     }
@@ -949,7 +951,7 @@ async function handleCallback(cb, env, ctx) {
         const T = LANGS[langCode] || LANGS.si;
         const notFoundText = T.not_found.replace("{query}", query);
         const kb = { inline_keyboard: [[{ text: T.req_btn, callback_data: `req_${query.substring(0, 40)}` }]] };
-        
+
         const isPhoto = !!(cb.message.photo || cb.message.video || cb.message.document);
         for (const token of bots) {
           let apiUrl = `https://api.telegram.org/bot${token}/editMessageText`;
@@ -967,7 +969,7 @@ async function handleCallback(cb, env, ctx) {
 
     if (data.startsWith("req_")) {
       const query = data.substring(4);
-      
+
       const langCode = await getUserLang(cb.from.id, env);
       const T = LANGS[langCode] || LANGS.si;
       const reqText = T.req_desc || `සොරි අනේ, 🥺 මේක නම් මගේ ඩේටාබේස් එකේ හොයාගන්න නෑ.\nසමහරවිට නමේ පොඩි අකුරක් එහෙ මෙහෙ වෙලාද දන්නෑ. 🤔\nපුළුවන්නම් ආයෙත් සැරයක් නම හරිද කියලා බලන්නකෝ 🙏\n\nනම හරියටම මතක නැත්නම්, මතක විදිහට Google එකේ සර්ච් කරලා බලන්න. 🕵️ ගොඩක් දුරට හරි නම එතනින් හොයාගන්න පුළුවන් ✨\n\nඇඩ්මින්ලට request එකක් යවන්න ඕනෙද? 😉 හරිම ලේසියි.! මෙන්න මෙහෙම කරන්න 👇\n\n👉 මුලින්ම පහළ තියෙන බටන් එක ඔබලා, ඔයාට ඕනේ Movie එකක්ද Series එකක්ද කියලා තෝරන්න. 🎬\n👉 ඊට පස්සේ එන bot ගේ 'Start' බටන් එකත් ඔබන්න. එච්චරයි.! 😉`;
@@ -1014,7 +1016,7 @@ async function handleCallback(cb, env, ctx) {
 
     if (data.startsWith("reqask_")) {
       const query = data.substring(7);
-      
+
       const langCode = await getUserLang(cb.from.id, env);
       const T = LANGS[langCode] || LANGS.si;
       const askText = T.req_ask_text || `හරි දැන් ඔයා ඕනි ෆිල්ම් එකක්ද ටීවී සිරීස් එකක්ද කියලා තෝරන්නකෝ.. 🤔`;
@@ -1061,6 +1063,43 @@ async function handleCallback(cb, env, ctx) {
       }
       return;
     }
+    if (data.startsWith("pub_yes_") || data.startsWith("pub_no_")) {
+      const isYes = data.startsWith("pub_yes_");
+      const pubMsgId = data.replace(isYes ? "pub_yes_" : "pub_no_", "");
+      
+      if (isYes) {
+        // Forward (Copy) to channel -1003947907936
+        await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/copyMessage`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: "-1003947907936",
+            from_chat_id: chatId,
+            message_id: pubMsgId,
+            reply_markup: {
+              inline_keyboard: [[
+                { text: "⚡ Download From Here ⚡", url: "https://t.me/BLACKBULLCINEMA" }
+              ]]
+            }
+          })
+        });
+        await answerCallbackSafe(bots, cb.id, "✅ Published to Channel!", true);
+      } else {
+        // Delete the original post
+        await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/deleteMessage`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, message_id: pubMsgId })
+        });
+        await answerCallbackSafe(bots, cb.id, "❌ Post deleted and NOT published.", true);
+      }
+      
+      // Delete the confirmation message (Yes/No prompt)
+      await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/deleteMessage`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, message_id: msgId })
+      });
+      return;
+    }
+
   } catch (err) {
     console.error("Callback Error:", err.message, err.stack);
   }
@@ -1071,15 +1110,15 @@ async function uploadToImgBB(fileId, botToken, imgbbKey) {
     const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`);
     const fileData = await fileRes.json();
     if (!fileData.ok) return fileId;
-    
+
     const fileUrl = `https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`;
     const imgRes = await fetch(fileUrl);
     const imgBuffer = await imgRes.arrayBuffer();
-    
+
     const formData = new FormData();
     formData.append("key", imgbbKey);
     formData.append("image", new Blob([imgBuffer]), "thumb.jpg");
-    
+
     const upRes = await fetch("https://api.imgbb.com/1/upload", {
       method: "POST",
       body: formData
@@ -1096,7 +1135,7 @@ async function uploadToImgBB(fileId, botToken, imgbbKey) {
 
 async function finalizeSave(chatId, state, env, thumbId) {
   const kv = env.BLACK_BULL_CINEMA;
-  
+
   let finalThumbId = thumbId;
   if (thumbId && env.IMGBB_API_KEY) {
     await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, {
@@ -1170,7 +1209,13 @@ async function finalizeSave(chatId, state, env, thumbId) {
   }
 
   // ── Generate Auto-Post ──
-  const postCaption = `🎬 <b>${movieData.title.toUpperCase()} (${movieData.year})</b>\n\n` +
+  const ratingStr = movieData.rating && movieData.rating.toUpperCase() !== "N/A" ? movieData.rating : "N/A";
+  const postCaption = `<b>Title:</b> ${movieData.title.toUpperCase()} [${movieData.year}]\n` +
+    `<b>Rating ⭐️:</b> ${ratingStr}\n` +
+    `<b>Type:</b> #${movieData.is_series ? 'Series' : 'Movie'}\n\n` +
+    `💚 <b>Uploaded</b> 💚\n\n` +
+    `#${movieData.title.replace(/[^a-zA-Z0-9]/g, '')} #${movieData.year} #BlackBullCinema`;
+  const postCaptionOld = `🎬 <b>${movieData.title.toUpperCase()} (${movieData.year})</b>\n\n` +
     `⭐ <b>IMDb Rating:</b> ${movieData.rating}/10\n` +
     `🎭 <b>Category:</b> ${movieData.is_series ? 'TV Series' : 'Movie'}\n` +
     `🎞 <b>Qualities:</b> ${movieData.qualities.map(q => q.name).join(" | ")}\n\n` +
@@ -1181,22 +1226,46 @@ async function finalizeSave(chatId, state, env, thumbId) {
   const randomImg = "https://i.ibb.co/fddYQSzT/blackbullcinema.png";
   const postThumb = movieData.thumb || randomImg;
 
-  await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendPhoto`, {
+  const photoMsgRes = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendPhoto`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: chatId,
       photo: postThumb,
-      caption: `✨ <b>Generated Auto-Post:</b>\n\n${postCaption}`,
-      parse_mode: "HTML"
+      caption: postCaption,
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [[
+          { text: "⚡ Download From Here ⚡", url: "https://t.me/BLACKBULLCINEMA" }
+        ]]
+      }
+
     })
   });
+  const photoMsgData = await photoMsgRes.json();
+  const autoPostMsgId = photoMsgData.ok ? photoMsgData.result.message_id : null;
 
   const sendMsg = async (msgText) => fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text: msgText, parse_mode: "HTML" })
   });
 
-  return sendMsg(`✅ <b>Successfully Saved to KV!</b>\n\n📌 <b>Key:</b> <code>${searchKey}</code>\n🎬 <b>Type:</b> ${movieData.is_series ? 'Series' : 'Movie'}\n🎬 <b>Total Qualities:</b> ${movieData.qualities.length}\n📦 <b>Grouped Files:</b> ${state.files.length}\n🎞 <b>Trailer:</b> ${movieData.trailer ? "Yes" : "No"}\n🖼 <b>Thumbnail:</b> ${thumbId ? "Yes" : "No"}\n🔗 <b>Gateway ID:</b> <code>${gatewayId}</code>\n\n<i>Forward another video to add more qualities or a new movie.</i>`);
+  await sendMsg(`✅ <b>Successfully Saved to KV!</b>\n\n📌 <b>Key:</b> <code>${searchKey}</code>\n🎬 <b>Type:</b> ${movieData.is_series ? 'Series' : 'Movie'}\n🎬 <b>Total Qualities:</b> ${movieData.qualities.length}\n📦 <b>Grouped Files:</b> ${state.files.length}\n🎞 <b>Trailer:</b> ${movieData.trailer ? "Yes" : "No"}\n🖼 <b>Thumbnail:</b> ${thumbId ? "Yes" : "No"}\n🔗 <b>Gateway ID:</b> <code>${gatewayId}</code>\n\n<i>Forward another video to add more qualities or a new movie.</i>`);
+
+  if (autoPostMsgId) {
+    const publishKb = {
+      inline_keyboard: [
+        [
+          { text: "✅ Yes", callback_data: `pub_yes_${autoPostMsgId}` },
+          { text: "❌ No", callback_data: `pub_no_${autoPostMsgId}` }
+        ]
+      ]
+    };
+    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: "❓ <b>Do you want to publish this post on Black Bull Cinema?</b>", parse_mode: "HTML", reply_markup: publishKb })
+    });
+  }
+  return new Response("OK");
 }
 
 // ══════════════════════════════════════════════
@@ -1233,7 +1302,7 @@ async function handleStartCommand(chatId, payload, env, bots) {
     let tokenData = null;
     let tokenDataStr = await kvRef.get(payload);
     if (tokenDataStr) {
-      try { tokenData = JSON.parse(tokenDataStr); } catch(e) {}
+      try { tokenData = JSON.parse(tokenDataStr); } catch (e) { }
     }
 
     if (!tokenData || String(tokenData.u) !== String(chatId)) {
@@ -1242,7 +1311,7 @@ async function handleStartCommand(chatId, payload, env, bots) {
       const refBotUser = await getBotUsername(refBotToken);
       const validBotUser = refBotUser !== "UnknownBot" ? refBotUser : "Sofia_BLACKBULL_bot";
       const kb = { inline_keyboard: [[{ text: "🔗 Earn More Points", url: `https://t.me/${validBotUser}?start=ref` }]] };
-      
+
       const errMsg = "⚠️ <b>මේක point system එක හරහා download කරපු films/series එකක් ඔයාටත් gateway නොයා direct download කරගන්න ඕනි නම් පහල button එක ඔබන්න.</b> 🎁";
       await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: errMsg, reply_markup: kb, parse_mode: "HTML" }) });
       return;
@@ -1254,7 +1323,7 @@ async function handleStartCommand(chatId, payload, env, bots) {
       await fetch(tgApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chatId, text: "⚠️ <b>You don't have enough points (5 points required).</b>\nPlease use the normal Gateway to download.", parse_mode: "HTML" }) });
       return;
     }
-    
+
     // Deduct points and delete token
     const remainingPoints = currentPoints - 5;
     await kvRef.put("pts_" + chatId, remainingPoints.toString());
@@ -1317,10 +1386,10 @@ async function handleStartCommand(chatId, payload, env, bots) {
     const refBotToken = bots.length > 1 ? bots[1] : bots[0];
     const refBotUser = await getBotUsername(refBotToken);
     const validBotUser = refBotUser !== "UnknownBot" ? refBotUser : "Sofia_BLACKBULL_bot";
-    
+
     const deductMsg = T.pts_deduct ? T.pts_deduct.replace("{pts}", deductedPoints) : `✅ ඔයාගේ points 5 ක් අඩු උනා.\nතව points ${deductedPoints} ක් තියෙනවා films/series direct download කරගන්න. 🎁`;
     const kb = { inline_keyboard: [[{ text: T.pts_more || "🔗 Earn More Points", url: `https://t.me/${validBotUser}?start=ref` }]] };
-    
+
     await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text: deductMsg, reply_markup: kb, parse_mode: "HTML" })
@@ -1330,10 +1399,10 @@ async function handleStartCommand(chatId, payload, env, bots) {
     const refBotToken = bots.length > 1 ? bots[1] : bots[0];
     const refBotUser = await getBotUsername(refBotToken);
     const validBotUser = refBotUser !== "UnknownBot" ? refBotUser : "Sofia_BLACKBULL_bot";
-    
+
     const promoMsg = T.pts_promo || `💡 <b>gateway එකට යන්නේ නැතුව කෙලින්ම bot හරහා ඔයාට ඕනි films/series ගන්න පහල තියෙන button එක ඔබන්න.</b> 👇`;
     const promoKb = { inline_keyboard: [[{ text: T.pts_btn || "🎁 Earn Point (Direct Download)", url: `https://t.me/${validBotUser}?start=ref` }]] };
-    
+
     await fetch(`https://api.telegram.org/bot${bots[0]}/sendMessage`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text: promoMsg, reply_markup: promoKb, parse_mode: "HTML" })
@@ -1377,7 +1446,9 @@ const LANGS = {
     qual_sel: "හරි, දැන් ඔයා කැමතිම කොලිටි එක තෝරගන්නෝ... 😉👇",
     dl_desc: "මෙන්න ඔයා ඉල්ලපු ලින්ක් එක. පහළ බටන් එක ඔබලා ඩවුන්ලෝඩ් කරගන්න. 📥👇",
     dl_btn: "📥 Download",
-    back_qual: "🔙 Back to Qualities"
+    back_qual: "🔙 Back to Qualities",
+    force_sub_alert: "❌ ඔයා join වෙලා නෑ,නැවත බලන්න.",
+    force_sub_alert: "❌ ඔයා join වෙලා නෑ,නැවත බලන්න."
   },
   en: {
     hello: "👋 Hello {name},\n\nCheck if the movie '<b>{query}</b>' you are looking for is here.. 👇\n\n📌 <i>If you are looking for a series, tap the 'Series' button to filter.</i>",
@@ -1410,7 +1481,9 @@ const LANGS = {
     qual_sel: "Alright, select your preferred quality now... 😉👇",
     dl_desc: "Here is the link you requested. Tap the button below to download. 📥👇",
     dl_btn: "📥 Download",
-    back_qual: "🔙 Back to Qualities"
+    back_qual: "🔙 Back to Qualities",
+    force_sub_alert: "❌ You haven't joined, please check again.",
+    force_sub_alert: "❌ You haven't joined, please check again."
   },
   hi: {
     hello: "👋 नमस्ते {name},\n\nजांचें कि आप जिस फिल्म '<b>{query}</b>' की तलाश कर रहे हैं वह यहां है या नहीं.. 👇\n\n📌 <i>यदि आप कोई श्रृंखला ढूंढ रहे हैं, तो 'Series' बटन पर टैप करें।</i>",
@@ -1443,7 +1516,9 @@ const LANGS = {
     qual_sel: "ठीक है, अब अपनी पसंदीदा गुणवत्ता चुनें... 😉👇",
     dl_desc: "यह वह लिंक है जिसके लिए आपने अनुरोध किया था। डाउनलोड करने के लिए नीचे दिए गए बटन पर टैप करें। 📥👇",
     dl_btn: "📥 Download",
-    back_qual: "🔙 Back to Qualities"
+    back_qual: "🔙 Back to Qualities",
+    force_sub_alert: "❌ आप शामिल नहीं हुए हैं, कृपया पुनः जांचें।",
+    force_sub_alert: "❌ आप शामिल नहीं हुए हैं, कृपया पुनः जांचें।"
   },
   es: {
     hello: "👋 Hola {name},\n\nComprueba si la película '<b>{query}</b>' que buscas está aquí.. 👇\n\n📌 <i>Si buscas una serie, toca el botón 'Series'.</i>",
@@ -1476,7 +1551,9 @@ const LANGS = {
     qual_sel: "Muy bien, selecciona tu calidad preferida ahora... 😉👇",
     dl_desc: "Aquí está el enlace que solicitaste. Toca el botón de abajo para descargar. 📥👇",
     dl_btn: "📥 Download",
-    back_qual: "🔙 Back to Qualities"
+    back_qual: "🔙 Back to Qualities",
+    force_sub_alert: "❌ No te has unido, por favor verifica de nuevo.",
+    force_sub_alert: "❌ No te has unido, por favor verifica de nuevo."
   },
   ta: {
     hello: "👋 வணக்கம் {name},\n\nநீங்கள் தேடும் '<b>{query}</b>' திரைப்படம் இங்கே உள்ளதா என்று பார்க்கவும்.. 👇\n\n📌 <i>நீங்கள் ஒரு தொடரை தேடுகிறீர்கள் என்றால், 'Series' பொத்தானை அழுத்தவும்.</i>",
@@ -1509,7 +1586,9 @@ const LANGS = {
     qual_sel: "சரி, இப்போது நீங்கள் விரும்பும் தரத்தைத் தேர்ந்தெடுக்கவும்... 😉👇",
     dl_desc: "நீங்கள் கோரிய இணைப்பு இதோ. பதிவிறக்க கீழே உள்ள பொத்தானைத் தட்டவும். 📥👇",
     dl_btn: "📥 Download",
-    back_qual: "🔙 Back to Qualities"
+    back_qual: "🔙 Back to Qualities",
+    force_sub_alert: "❌ நீங்கள் சேரவில்லை, தயவுசெய்து மீண்டும் சரிபார்க்கவும்.",
+    force_sub_alert: "❌ நீங்கள் சேரவில்லை, தயவுசெய்து மீண்டும் சரிபார்க்கவும்."
   }
 };
 
@@ -1867,7 +1946,7 @@ async function showWatchlist(botToken, chatId, filter, env, userId, editMsgId = 
   const kv = env.BLACK_BULL_CINEMA || env.DB;
   let watchlistStr = await kv.get(`watch_${userId}`);
   let watchlist = watchlistStr ? JSON.parse(watchlistStr) : [];
-  
+
   const tgApi = apiBase ? apiBase : `https://api.telegram.org/bot${botToken}`;
 
   if (watchlist.length === 0) {
@@ -1889,7 +1968,7 @@ async function showWatchlist(botToken, chatId, filter, env, userId, editMsgId = 
   let listText = "🎬 <b>My Watchlist</b> 🍿\n\n";
   let count = 1;
   let currentViewIds = [];
-  
+
   for (const mId of watchlist) {
     let searchKey = null;
     if (env.BLACK_BULL_CINEMA_FILEID) searchKey = await env.BLACK_BULL_CINEMA_FILEID.get(`idx_${mId}`);
@@ -1898,14 +1977,14 @@ async function showWatchlist(botToken, chatId, filter, env, userId, editMsgId = 
       const list = await kv.list({ prefix: `idx_${mId}` });
       if (list.keys.length > 0) searchKey = await kv.get(list.keys[0].name);
     }
-    
+
     if (searchKey) {
       const dataStr = await kv.get(searchKey);
       if (dataStr) {
         const movie = JSON.parse(dataStr);
         if (filter === "movies" && movie.is_series) continue;
         if (filter === "series" && !movie.is_series) continue;
-        
+
         currentViewIds.push(mId);
         const icon = movie.is_series ? "📺" : "🎬";
         listText += `${count}. ${icon} <code>${movie.title}</code> (${movie.year})\n`;
