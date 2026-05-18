@@ -1066,7 +1066,7 @@ async function handleCallback(cb, env, ctx) {
     if (data.startsWith("pub_yes_") || data.startsWith("pub_no_")) {
       const isYes = data.startsWith("pub_yes_");
       const pubMsgId = data.replace(isYes ? "pub_yes_" : "pub_no_", "");
-      
+
       if (isYes) {
         // Forward (Copy) to channel -1003947907936
         await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/copyMessage`, {
@@ -1091,7 +1091,7 @@ async function handleCallback(cb, env, ctx) {
         });
         await answerCallbackSafe(bots, cb.id, "❌ Post deleted and NOT published.", true);
       }
-      
+
       // Delete the confirmation message (Yes/No prompt)
       await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/deleteMessage`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -1963,6 +1963,7 @@ async function showWatchlist(botToken, chatId, filter, env, userId, editMsgId = 
       });
     }
     return;
+
   }
 
   let listText = "🎬 <b>My Watchlist</b> 🍿\n\n";
