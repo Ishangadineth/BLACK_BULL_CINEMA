@@ -1208,6 +1208,41 @@ async function finalizeSave(chatId, state, env, thumbId) {
     await kv.put(`idx_${movieData.id}`, searchKey);
   }
 
+  // ── Backup System ──
+  const backupTargets = [
+    { chat_id: "-1003717750488", kv: env.BLACK_BULL_CINEMA_BACKUP_FILEID_1 },
+    { chat_id: "-1003954337071", kv: env.BLACK_BULL_CINEMA_BACKUP_FILEID_2 },
+    { chat_id: "-5188046505", kv: env.BLACK_BULL_CINEMA_BACKUP_FILEID_3 }
+  ];
+
+  for (const backup of backupTargets) {
+    if (!backup.kv) continue;
+    let backupFilesToSave = [];
+    for (const f of state.files) {
+      const typeToMethod = { "video": "sendVideo", "document": "sendDocument", "audio": "sendAudio", "photo": "sendPhoto", "file": "sendDocument" };
+      const method = typeToMethod[f.type] || "sendDocument";
+      let payload = { chat_id: backup.chat_id, caption: `🎬 Backup: ${state.title} (${state.year}) - ${state.quality} ${state.format}` };
+      payload[f.type === "file" ? "document" : f.type] = f.id;
+
+      try {
+        const res = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/${method}`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.ok) {
+           backupFilesToSave.push({ id: data.result.message_id.toString(), type: "channel_msg", caption: "" });
+        } else {
+           backupFilesToSave.push({ id: f.id, type: f.type, caption: "" });
+        }
+      } catch(e) {
+        backupFilesToSave.push({ id: f.id, type: f.type, caption: "" });
+      }
+    }
+    await backup.kv.put(`idx_${movieData.id}`, searchKey);
+    await backup.kv.put(gatewayId, JSON.stringify(backupFilesToSave));
+  }
+
   // ── Generate Auto-Post ──
   const ratingStr = movieData.rating && movieData.rating.toUpperCase() !== "N/A" ? movieData.rating : "N/A";
   const postCaption = `<b>Title:</b> ${movieData.title.toUpperCase()} [${movieData.year}]\n` +
