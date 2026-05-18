@@ -1215,14 +1215,24 @@ async function finalizeSave(chatId, state, env, thumbId) {
     { chat_id: "-5188046505", kv: env.BLACK_BULL_CINEMA_BACKUP_FILEID_3 }
   ];
 
+  const mainDbChannel = env.DB_CHANNEL || "-1003759058179";
+
   for (const backup of backupTargets) {
     if (!backup.kv) continue;
     let backupFilesToSave = [];
     for (const f of state.files) {
-      const typeToMethod = { "video": "sendVideo", "document": "sendDocument", "audio": "sendAudio", "photo": "sendPhoto", "file": "sendDocument" };
-      const method = typeToMethod[f.type] || "sendDocument";
-      let payload = { chat_id: backup.chat_id, caption: `🎬 Backup: ${state.title} (${state.year}) - ${state.quality} ${state.format}` };
-      payload[f.type === "file" ? "document" : f.type] = f.id;
+      let method = "sendDocument";
+      let payload = { chat_id: backup.chat_id, caption: `🎬 Backup: ${state.title} (${state.year}) - ${state.quality} ${state.format}`, parse_mode: "HTML" };
+
+      if (f.type === "channel_msg") {
+        method = "copyMessage";
+        payload.from_chat_id = mainDbChannel;
+        payload.message_id = f.id;
+      } else {
+        const typeToMethod = { "video": "sendVideo", "document": "sendDocument", "audio": "sendAudio", "photo": "sendPhoto", "file": "sendDocument" };
+        method = typeToMethod[f.type] || "sendDocument";
+        payload[f.type === "file" ? "document" : f.type] = f.id;
+      }
 
       try {
         const res = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN_1}/${method}`, {
